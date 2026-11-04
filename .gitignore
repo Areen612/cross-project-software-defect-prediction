@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Secrets
+.env
+.env.*
+
+# Dataset
+resources/*.csv
+
+# Experiment outputs
+outputs/*
+!outputs/.gitkeep
+
+# Model artifacts
+*.joblib
+*.pkl
