@@ -1,5 +1,6 @@
 import warnings
 
+import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
@@ -65,3 +66,11 @@ def validate_dataset(df: DataFrame) -> None:
             f"Unexpected columns found: {unexpected_columns}",
             UserWarning
         )
+    
+    # 6. Validate predictor features
+    for col in FEATURES:
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            raise ValueError(f"Column '{col}' is not numeric")
+
+        if np.isinf(df[col]).any():
+            raise ValueError(f"Infinite values found in column '{col}'")
