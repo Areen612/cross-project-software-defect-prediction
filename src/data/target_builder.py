@@ -1,7 +1,7 @@
-import numpy as np
 import pandas as pd
 
 from src.config import SOURCE_COLUMN, TARGET_COLUMN
+from src.data.target_validation import validate_bug_counts
 
 
 def target_builder(df: pd.DataFrame) -> pd.DataFrame:
@@ -23,25 +23,13 @@ def target_builder(df: pd.DataFrame) -> pd.DataFrame:
             f"Required target source column '{SOURCE_COLUMN}' is missing."
         )
 
-    # Convert bug counts to numeric values for validation.
-    bug_counts = pd.to_numeric(df[SOURCE_COLUMN], errors="coerce")
+    # Validate and convert bug counts using shared validation
+    bug_counts = validate_bug_counts(df[SOURCE_COLUMN])
 
-    # Reject missing, non-numeric, and non-finite values.
-    if not np.isfinite(bug_counts).all():
-        raise ValueError(
-            "Missing or invalid values found in the bug-count column."
-        )
-
-    # Reject negative bug counts.
-    if (bug_counts < 0).any():
-        raise ValueError(
-            "Negative values found in the bug-count column."
-        )
-
-    # Create a copy to avoid modifying the original DataFrame.
+    # Create a copy to preserve the original DataFrame
     result = df.copy()
 
-    # Construct the binary target.
+    # A class is buggy if its bug count is greater than zero
     result[TARGET_COLUMN] = bug_counts > 0
 
     return result

@@ -5,6 +5,7 @@ import pandas as pd
 from pandas import DataFrame
 
 from src.config import FEATURES, INPUT_PATH, METADATA_COLUMNS, SOURCE_COLUMN
+from src.data.target_validation import validate_bug_counts
 
 
 def load_dataset() -> DataFrame:
@@ -17,13 +18,15 @@ def load_dataset() -> DataFrame:
         raise ValueError(
             f"Dataset file is empty: {INPUT_PATH}"
         )
-        
-    # low_memory=False is used to avoid dtype inference issues with large datasets
+
+    # low_memory=False avoids mixed dtype inference issues
+    # when reading large CSV files.
     return pd.read_csv(
         INPUT_PATH,
         low_memory=False,
         na_values=["-"],
     )
+
 
 def validate_dataset(df: DataFrame) -> None:
     # 1. Check duplicate column names
@@ -46,14 +49,8 @@ def validate_dataset(df: DataFrame) -> None:
     if missing_columns:
         raise ValueError(f"Required columns missing: {missing_columns}")
 
-    # 4. Validate target values
-    target = pd.to_numeric(df[SOURCE_COLUMN], errors="coerce")
-
-    if target.isnull().any():
-        raise ValueError("Missing or non-numeric values found in target column")
-
-    if (target < 0).any():
-        raise ValueError("Negative values found in target column")
+    # 4. Validate target values using shared validation
+    validate_bug_counts(df[SOURCE_COLUMN])
 
     # 5. Report unexpected columns
     unexpected_columns = [
