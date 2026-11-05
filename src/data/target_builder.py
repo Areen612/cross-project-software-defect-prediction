@@ -23,6 +23,12 @@ def target_builder(df: pd.DataFrame) -> pd.DataFrame:
             f"Required target source column '{SOURCE_COLUMN}' is missing."
         )
 
+    if TARGET_COLUMN in df.columns:
+        raise ValueError(
+            f"Target column '{TARGET_COLUMN}' already exists. "
+            "Remove it before building the target."
+        )
+    
     # Validate and convert bug counts using shared validation
     bug_counts = validate_bug_counts(df[SOURCE_COLUMN])
 

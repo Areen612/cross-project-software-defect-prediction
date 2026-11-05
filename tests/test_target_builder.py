@@ -87,3 +87,15 @@ def test_target_builder_rejects_missing_source_column():
 
     with pytest.raises(ValueError, match="Required target source column"):
         target_builder(df)
+
+
+def test_target_builder_rejects_existing_target_column():
+    """Test that target_builder rejects an existing target column."""
+
+    df = pd.DataFrame({
+        SOURCE_COLUMN: [0, 1, 3],
+        TARGET_COLUMN: [True, False, True]
+    })
+
+    with pytest.raises(ValueError, match="already exists"):
+        target_builder(df)
