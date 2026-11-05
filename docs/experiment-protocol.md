@@ -1,128 +1,205 @@
 # Experiment Protocol
 
 > **Project:** Cross-Project Software Defect Prediction  
-> **Protocol status:** Planned experiment; no model training or experiment execution has been performed.  
-> **Primary evaluation:** Leave-One-Project-Out (LOPO)  
-> **Primary model:** RandomForestClassifier  
-> **Baseline:** Majority-class DummyClassifier  
-> **Time constraint:** 20-hour practice experiment  
-> **Dataset description:** See `dataset-and-methodology.md`.
+> **Protocol status:** Planned; no experiment execution has been performed.  
+> **Primary evaluation:** Leave-One-Project-Out (LOPO) across 39 projects.  
+> **Primary model:** Random Forest.  
+> **Baseline:** Majority-class Dummy Classifier.  
+> **Primary comparison metric:** Matthews Correlation Coefficient (MCC).
 
-## 1. Experimental objective
+## 1. Objective and scope
 
-The experiment evaluates whether a defect prediction model trained on multiple software projects can generalize to a project that was not represented during training.
+The experiment evaluates whether a defect prediction model trained on observations from multiple software projects can generalize to a project that is completely excluded from training.
 
-The primary evaluation uses **Leave-One-Project-Out (LOPO)** across all 39 projects. Each project serves as the held-out test project exactly once. The remaining 38 projects are pooled to form that fold's training set.
+The primary experiment is a Python implementation using a fixed set of approved predictors, fold-local preprocessing, and Leave-One-Project-Out evaluation.
 
-This is not a random row split and is not a collection of independent source-project/target-project pair experiments.
+The experiment is intended as a reproducible baseline within a 20-hour practice-project limit. It is not intended to exhaustively optimize model parameters or establish universal conclusions about cross-project defect prediction.
 
-The experiment is intended to establish a reproducible cross-project baseline, not to exhaustively optimize models or establish universal conclusions about software defect prediction.
+No model results should be reported until the complete protocol has been implemented, tested, and executed.
 
-## 2. Dataset and feature requirements
+## 2. Dataset and target
 
-The input dataset is `resources/ds.csv`. Its descriptive characteristics, target definition, missingness, feature inventory, and limitations are documented in `dataset-and-methodology.md`.
+### 2.1 Input dataset
 
-### 2.1 Target
+- Input file: `resources/ds.csv`
+- Observations: 110,917 rows
+- Projects: 39
+- Original columns: 29
+- Each row is retained as a separate observation.
+- Repeated class names across versions must not be deduplicated.
+- The raw CSV must remain unchanged.
 
-Construct the binary target from `bugs`:
+The first blank-header column may be read as `Unnamed: 0`. It is an undocumented index-like field and must not be used as a predictor.
 
-- `buggy = True` when `bugs > 0`.
-- `buggy = False` when `bugs == 0`.
+### 2.2 Target construction
 
-The `bugs` column must not be included among predictors.
+The source target column is `bugs`.
 
-### 2.2 Primary predictors
+Construct the binary target as follows:
 
-Use exactly these 21 professor-approved predictors:
+- `buggy = True` when `bugs > 0`
+- `buggy = False` when `bugs == 0`
 
-`noc`, `cbo`, `rfc`, `lcom`, `ca`, `ce`, `npm`, `lcom3`, `loc`, `dam`, `moa`, `mfa`, `cam`, `ic`, `cbm`, `amc`, `nr`, `ndc`, `ndpv`, `ner`, `max(cc)`.
+Before target construction:
 
-Do not select predictors automatically from all numeric columns.
+- Reject missing target values.
+- Reject non-numeric target values.
+- Reject negative target values.
+- Do not silently convert invalid target values into valid labels.
 
-The following fields must be excluded:
+The `bugs` column must not be included in the predictor matrix.
 
-- Blank-header first column (`Unnamed: 0` in some readers).
-- `Project`.
-- `Version`.
-- `Class`.
-- `bugs`.
-- `nml`.
-- `isOld`.
-- `avg(cc)`.
+### 2.3 Approved primary predictors
 
-The professor explicitly instructed that `nml`, `isOld`, and `avg(cc)` be removed. These exclusions apply to the primary experiment.
+The primary experiment uses exactly these **18 predictors**:
 
-`Project` is used to construct the outer folds. `Version` is used for reporting and grouping. `Class` is retained for traceability. None of these fields is a predictor.
+```python
+FEATURES = [
+    "noc",
+    "cbo",
+    "rfc",
+    "lcom",
+    "ca",
+    "ce",
+    "npm",
+    "lcom3",
+    "loc",
+    "dam",
+    "moa",
+    "mfa",
+    "cam",
+    "ic",
+    "cbm",
+    "amc",
+    "nr",
+    "ndc",
+]
+```
 
-## 3. Experimental design: Leave-One-Project-Out
+The feature list must be defined explicitly in configuration. Do not infer predictors by selecting all numeric columns.
 
-### 3.1 Outer evaluation
+### 2.4 Excluded variables and metadata
 
-The primary experiment uses **Leave-One-Project-Out (LOPO)** evaluation across all 39 projects.
+The following six consecutive metric columns are excluded from the primary predictor set following the supervisor's instruction, which specified the range from `nml` through `avg(cc)`:
 
-For each outer fold:
+```python
+EXCLUDED_FEATURES = [
+    "nml",
+    "isOld",
+    "ndpv",
+    "ner",
+    "max(cc)",
+    "avg(cc)",
+]
+```
 
-1. Select one project as the held-out test project.
-2. Place every row from that project in the test set.
-3. Pool every row from the other 38 projects into the training set.
-4. Fit preprocessing and the model using training data only.
-5. Transform and predict the held-out project's observations.
-6. Save predictions and fold metadata for evaluation.
-7. Repeat until every project has served as the held-out project once.
+This is a supervisor-directed feature exclusion. It must not be described as proof that all six variables are almost entirely missing or empirically unimportant. The missingness rates differ substantially across these variables; only `avg(cc)` is extremely sparse in the inspected dataset.
 
-This produces 39 outer folds and 39 fitted outer-fold models per algorithm.
+The following columns are not predictors:
 
-The fold construction must be automated from the project values present in the dataset. Projects or versions must not be manually selected.
+| Column | Role |
+|---|---|
+| `Project` | Outer-fold grouping and reporting |
+| `Version` | Version-level evaluation grouping |
+| `Class` | Observation identification and traceability |
+| `bugs` | Source of the binary target |
+| Blank-header first column | Undocumented index-like field; excluded |
 
-A fold integrity check must confirm:
+The implementation must verify that all required metadata, target-source, and approved predictor columns exist before proceeding.
 
-- The training and test project sets are disjoint.
-- The test set contains exactly the designated held-out project.
-- No observations from the held-out project are included in training.
-- Every project appears as the test project exactly once.
+Unexpected columns should be reported but must never be silently added to the predictor set.
 
-### 3.2 Fold-local preprocessing
+## 3. Data loading and validation
 
-For each outer fold:
+### 3.1 Loading
 
-1. Parse blank cells and `-` as missing values.
-2. Determine which features are entirely missing in that fold's training data.
-3. Drop those features for that fold and record their names.
-4. Fit a median imputer on the remaining training features only.
-5. Apply the fitted imputer to the held-out project.
-6. Fit the model using the preprocessed training data.
-7. Transform and predict the held-out project using the already-fitted preprocessing and model.
+Load the CSV from the configured input path.
 
-No imputer, scaler, feature selector, or model may be fitted using held-out project observations.
+The loader must:
 
-A feature that is entirely missing in the full dataset is not expected based on the dataset audit. However, a feature may be entirely missing in the training portion of an individual fold. The implementation must handle and record that situation.
+1. Check that the input file exists.
+2. Reject a zero-byte input file.
+3. Read the CSV into a pandas DataFrame.
+4. Avoid unnecessary data transformations at the loading stage.
 
-### 3.3 Scaling
+The loader should not construct the target, impute values, select predictors, or generate folds.
 
-Random Forest does not require feature scaling. No scaler is used in the primary Random Forest pipeline.
+### 3.2 Dataset validation
 
-Any optional model that requires scaling must fit its scaler using the outer training projects only.
+Validation must check:
 
-### 3.4 Hyperparameter tuning
+- The DataFrame contains observations.
+- Column names are unique.
+- All required columns exist.
+- The target-source column contains no missing values.
+- Target-source values are numeric and non-negative.
+- Unexpected columns are reported.
+- The approved predictor configuration contains exactly the 18 specified fields.
 
-The initial experiment uses a fixed, simple Random Forest configuration.
+Missing predictor values are allowed at this stage. They are handled by fold-specific preprocessing.
 
-If hyperparameter tuning is later attempted:
+### 3.3 Missing-value parsing
 
-- Validation must be grouped by project within the outer training projects.
-- The held-out outer project must remain untouched until final fold evaluation.
-- The search must remain small and computationally proportionate to the 20-hour project limit.
-- Any tuning procedure and its settings must be documented.
+The dataset uses blank cells and `-` to represent missing metric values.
 
-Do not use the held-out project to select hyperparameters, preprocessing decisions, or thresholds.
+Both representations must be converted into proper missing values before numeric preprocessing.
 
-## 4. Primary model: Random Forest
+The implementation must not convert missing predictor values to zero.
 
-The primary model is `RandomForestClassifier`.
+## 4. Outer evaluation: Leave-One-Project-Out
 
-Random Forest is selected as a practical baseline for heterogeneous software metrics because it can model nonlinear decision boundaries and feature interactions without requiring standardized features or normally distributed inputs.
+The primary evaluation uses all 39 projects as outer test folds.
 
-The initial configuration is:
+For every distinct project:
+
+1. Select the project as the held-out project.
+2. Assign all its observations to the test set.
+3. Assign all observations from the other 38 projects to the training set.
+4. Fit preprocessing using training data only.
+5. Fit the model using the transformed training data.
+6. Transform and predict the held-out project.
+7. Store predictions and fold metadata.
+8. Continue until every project has been held out exactly once.
+
+Expected outcome:
+
+- 39 outer folds.
+- Each project appears as the test project exactly once.
+- Each test fold contains observations from only its held-out project.
+- Training and test project sets are disjoint.
+
+This is not a random row-level split and not a collection of source-project/target-project pair experiments.
+
+Fold generation must be automated from the dataset's actual `Project` values. Project names must not be manually hard-coded.
+
+## 5. Fold-local preprocessing
+
+Preprocessing must be performed independently inside each outer fold.
+
+For each fold:
+
+1. Select the 18 approved predictors.
+2. Convert blanks and `-` placeholders into missing values.
+3. Inspect missingness in the training portion.
+4. Identify predictors that are entirely missing in the training portion.
+5. Drop those predictors for that fold and record their names.
+6. Fit a median imputer using the remaining training predictors only.
+7. Apply the fitted imputer to the held-out test project.
+8. Preserve the feature ordering between training and test data.
+
+No imputer or other learned preprocessing component may be fitted using the held-out project's observations.
+
+The primary Random Forest pipeline does not require feature scaling. No scaler will be used for the primary model.
+
+A feature that is entirely missing in a training fold must not be imputed using statistics from the held-out project.
+
+The implementation must record fold-specific dropped features so that preprocessing decisions are auditable.
+
+## 6. Primary model: Random Forest
+
+Use `sklearn.ensemble.RandomForestClassifier`.
+
+The initial configuration is fixed:
 
 | Parameter | Value |
 |---|---|
@@ -132,252 +209,284 @@ The initial configuration is:
 | `random_state` | `42` |
 | `n_jobs` | `-1` |
 
-This configuration is a reproducible baseline, not a claim that the settings are optimal.
+These settings define the initial baseline experiment. They are not claimed to be optimal.
 
-The complete model configuration and software versions must be recorded with the results.
+The model must be fitted separately in every outer fold using only the corresponding training projects.
 
-## 5. Majority-class baseline
+The primary model must use the same 18-feature configuration in every fold, except where a feature is entirely missing in that fold's training data and must therefore be dropped according to the preprocessing policy.
 
-A `DummyClassifier` using a majority-class strategy will be evaluated in every outer fold.
+## 7. Baseline model
 
-It provides a reference for the performance obtainable by predicting the majority class without learning relationships between metrics and defects.
+Use:
 
-The baseline is important because the target is highly imbalanced. Random Forest performance should be interpreted in relation to this baseline, particularly for MCC, recall, precision, and F1.
+```python
+DummyClassifier(strategy="most_frequent")
+```
 
-The Dummy baseline must use the same outer folds and evaluation procedure as the primary model.
+The Dummy Classifier must be evaluated in every outer fold using the same training/test project separation.
 
-## 6. Class-weighted sensitivity analysis
+It provides a majority-class reference against which the Random Forest results can be compared.
 
-The primary Random Forest uses `class_weight=None`.
+The baseline is important because the dataset is imbalanced:
 
-If the baseline and primary results indicate that class imbalance materially limits minority-class detection, a class-weighted Random Forest may be evaluated as a separately labelled sensitivity analysis.
+- Buggy: 102,167 observations (92.11%)
+- Non-buggy: 8,750 observations (7.89%)
 
-The sensitivity analysis must:
+Accuracy alone must not be used to conclude that the Random Forest is effective.
 
-- Use the same outer LOPO folds.
-- Use fold-local preprocessing.
-- Be reported separately from the primary Random Forest.
-- Preserve the primary results rather than replacing or overwriting them.
+## 8. Optional sensitivity analysis
 
-This analysis is optional and must not delay the primary deliverables.
+A class-weighted Random Forest may be considered after the primary Random Forest and Dummy baseline have been completed and reviewed.
 
-## 7. Evaluation and aggregation
+If performed:
 
-### 7.1 Project-version metrics
+- It must be clearly labelled as a sensitivity analysis.
+- It must use the same 39 outer folds.
+- It must follow the same fold-local preprocessing rules.
+- It must not replace or overwrite the primary Random Forest results.
 
-For every held-out project, predictions will be grouped by `Version`.
+Optional additional models must not delay the primary deliverables.
 
-Missing version values will be retained and labelled `Version unavailable`. No version label will be inferred or fabricated.
+## 9. Prediction records
 
-For each project-version group, calculate:
+For each held-out observation, preserve enough information to trace the prediction back to its project and fold.
 
-- Accuracy.
-- Precision.
-- Recall.
-- F1-score.
-- Matthews Correlation Coefficient (MCC).
-- Row count (support).
-- Buggy count.
-- Non-buggy count.
-- Confusion-matrix counts: TN, FP, FN, TP.
+The prediction output should include:
 
-The implementation must explicitly document the zero-division behavior used for precision, recall, and F1.
+- Held-out project
+- Version
+- Class identifier
+- True target
+- Predicted target
+- Model name
+- Fold/model identifier
 
-A consistent choice is `zero_division=0` for precision, recall, and F1. This convention must be stated in the workbook and report.
+The implementation should retain the original observation identity or a stable row index so predictions can be checked against the source records.
 
-If a version group contains only one actual target class, flag its MCC as **not informative for two-class discrimination**. A numerical MCC returned by a library in a degenerate case must not be interpreted as evidence of meaningful two-class discrimination.
+## 10. Evaluation metrics
 
-### 7.2 Project summaries
+Calculate the following metrics:
 
-For each project, calculate the unweighted arithmetic mean of each requested metric across that project's version groups.
+- Accuracy
+- Precision
+- Recall
+- F1-score
+- Matthews Correlation Coefficient (MCC)
 
-For example, if Project A has three versions, its project-level F1 is:
+MCC is the primary comparison metric because it accounts for all four confusion-matrix outcomes and is useful under class imbalance.
 
-`Project A F1 = (F1_v1 + F1_v2 + F1_v3) / 3`
+For each evaluation group, also retain:
 
-Label these values explicitly as **mean across versions**.
+- Total row count
+- Buggy count
+- Non-buggy count
+- True negatives (TN)
+- False positives (FP)
+- False negatives (FN)
+- True positives (TP)
 
-Every version group contributes equally to its project's summary, regardless of its row count. This follows the evaluation structure described by the professor.
+Use a consistent zero-division convention for precision, recall, and F1. The planned convention is `zero_division=0`. Record this choice in the workbook and report.
 
-This project-level average is distinct from calculating metrics once over all observations belonging to the project.
+If a version group contains only one actual target class, flag its MCC as **not informative for two-class discrimination**. Do not interpret a numerical MCC from a degenerate group as evidence of meaningful two-class discrimination.
 
-Both the version-level support counts and the aggregation rule must be retained so readers can understand this choice.
+## 11. Version-level evaluation
 
-### 7.3 Macro project-level model comparison
+For every held-out project:
 
-For the primary overall comparison, calculate the arithmetic mean of the 39 project summaries, giving every project equal weight.
+1. Group its predictions by `Version`.
+2. Calculate all specified metrics separately for each version group.
+3. Retain support and confusion-matrix counts.
+4. Preserve missing version labels and represent them as `Version unavailable`.
 
-For example:
+Do not infer or fabricate missing version values.
 
-`Macro project F1 = (Project A F1 + Project B F1 + ... + Project AM F1) / 39`
+The workbook's `Version Metrics` sheet must contain one row per held-out project-version group and model.
 
-Here, each project contributes equally, regardless of its number of observations.
+## 12. Project summaries
 
-**MCC is the primary comparison metric.** Accuracy, precision, recall, and F1 should be reported alongside it.
+For each project, calculate the **unweighted arithmetic mean across its version groups** for each requested metric.
 
-The comparison must distinguish:
+This means each version group contributes equally to the project summary, regardless of its observation count.
 
-- Primary Random Forest.
-- Majority-class Dummy baseline.
-- Class-weighted Random Forest, if performed.
-- Optional secondary models, if performed.
+Label these values explicitly as `mean across versions`.
 
-This macro project-level result answers: how well does the model perform across projects when each project is treated as equally important?
+Do not confuse this calculation with computing a metric once over all observations belonging to a project.
 
-### 7.4 Supplementary pooled evaluation
+The workbook's `Project Summary` sheet must retain the project-level summary and the aggregation convention.
 
-In addition to the macro project-level comparison, calculate supplementary pooled metrics using all held-out predictions from the 39 LOPO folds.
+## 13. Overall model comparison
 
-Each observation appears exactly once in the combined held-out predictions because every project serves as the test project exactly once.
+The primary overall comparison is the **macro average across the 39 held-out project summaries**.
 
-For pooled evaluation:
+Each project receives equal weight, regardless of its size.
 
-1. Combine the held-out predictions from all 39 projects.
-2. Construct one overall confusion matrix using all combined predictions.
-3. Calculate accuracy, precision, recall, F1, and MCC from the combined counts.
-4. Report the total number of observations and the overall confusion-matrix counts.
+MCC is the primary comparison metric. Report accuracy, precision, recall, and F1 alongside it.
 
-Pooled evaluation gives larger projects greater influence because they contribute more observations.
+Compare:
 
-For accuracy, pooled evaluation is mathematically equivalent to weighting project-level accuracy by project size.
+- Primary Random Forest
+- Majority-class Dummy baseline
+- Any separately labelled sensitivity or optional models, if performed
 
-For F1 and MCC, pooled metrics must be calculated from the combined confusion-matrix counts. They must not be obtained by simply taking an observation-weighted average of the individual project F1 or MCC scores, because these metrics are nonlinear and the calculations are generally not equivalent.
+### 13.1 Supplementary pooled evaluation
 
-Pooled results must be clearly labelled **pooled across all held-out observations**. They must not be confused with the macro average across projects.
+In addition to the primary macro project-level comparison, calculate supplementary pooled metrics by combining all held-out predictions from the 39 outer folds.
 
-The macro project-level results remain the primary overall comparison. Pooled results provide a complementary observation-level perspective.
+Calculate pooled metrics directly from the combined predictions and confusion-matrix counts.
 
-## 8. Optional models
+Do not calculate pooled F1 or pooled MCC by taking a weighted or unweighted average of project-level F1 or MCC values.
 
-The following models are optional and must not delay the primary Random Forest, Dummy baseline, workbook, and required review.
+Pooled accuracy is equivalent to the observation-weighted average of project accuracy, but pooled F1 and MCC generally are not equivalent to weighted averages of project-level scores.
 
-### 8.1 HistGradientBoostingClassifier
+Clearly label pooled results as supplementary and distinguish them from macro project-level results.
 
-Histogram-based gradient boosting is a tree-boosting alternative that can model nonlinear relationships and supports missing values natively in scikit-learn.
+## 14. Output workbook
 
-It may provide a useful comparison with Random Forest.
+The required Excel workbook must contain the following sheets:
 
-If evaluated:
+### `Version Metrics`
 
-- Use the exact same outer LOPO folds.
-- Document its missing-value handling as a distinct preprocessing strategy.
-- Do not describe its native missing-value handling as equivalent to median imputation.
+One row per held-out project-version group, including:
 
-### 8.2 LinearSVC
+- Model
+- Project
+- Version
+- Support
+- Buggy count
+- Non-buggy count
+- Accuracy
+- Precision
+- Recall
+- F1
+- MCC
+- TN
+- FP
+- FN
+- TP
 
-`LinearSVC` provides a linear-margin classification comparison.
+### `Project Summary`
 
-It is sensitive to feature scales, so it requires:
+One row per project and model, containing the unweighted arithmetic mean of version-level metrics. Clearly label the aggregation as `mean across versions`.
 
+### `Model Comparison`
+
+Include:
+
+- Macro project-level model comparison (primary)
+- Pooled observation-level model comparison (supplementary)
+- Clear identification of the primary MCC metric
+- Clear identification of the Random Forest and Dummy baseline
+
+### `Run Notes`
+
+Record:
+
+- Dataset filename and checksum
+- Dataset row and project counts
+- Target definition
+- The 18 approved predictors
+- The six supervisor-directed exclusions
+- Missing-value parsing rules
+- Fold-local preprocessing decisions
+- LOPO evaluation design
+- Random Forest parameters
+- Baseline configuration
+- Metric definitions and zero-division convention
+- Software and package versions
+- Execution timestamp
+- Relevant limitations and deviations
+
+## 15. Model artifacts
+
+Save each outer-fold Random Forest model together with the preprocessing components required to apply it.
+
+Use a clear naming convention based on the held-out project.
+
+Also train a separate final Random Forest using all eligible observations after the cross-project evaluation has been completed.
+
+The all-data model is intended for future use. Its training performance must not be reported as cross-project evaluation performance.
+
+Do not mix the final all-data model with the 39 outer-fold evaluation models.
+
+## 16. Reproducibility and leakage prevention
+
+The implementation must follow these rules:
+
+1. Keep the raw CSV immutable.
+2. Use the explicit approved 18-feature list.
+3. Keep `Project`, `Version`, `Class`, `bugs`, and the blank-header column out of the predictors.
+4. Do not reintroduce the six supervisor-excluded variables without a documented protocol change.
+5. Generate outer folds automatically from the 39 projects.
+6. Never allow observations from the held-out project into training or preprocessing.
+7. Fit imputation using training projects only.
+8. Do not use the held-out project's target or predictor distribution to make preprocessing decisions.
+9. Use fixed and recorded model settings.
+10. Preserve predictions and fold metadata.
+11. Keep the final all-data model separate from outer-fold models.
+12. Record deviations from this protocol, including whether they occurred before or after inspecting results.
+
+## 17. Testing and quality assurance
+
+Before running the full experiment, automated tests should verify:
+
+- Dataset loading and missing-file handling.
+- Duplicate-column detection.
+- Required-column validation.
+- Target validation and target construction.
+- Exact 18-feature predictor configuration.
+- Exclusion of the six supervisor-directed variables.
+- Exclusion of metadata and target-source fields from predictors.
+- Correct generation of 39 LOPO folds.
+- Disjoint training and test project sets.
+- Correct handling of missing predictor values.
 - Fold-local imputation.
-- Fold-local robust scaling.
+- Fold-specific removal of entirely missing training features.
+- Confusion-matrix accounting.
+- Version-level metric calculations.
+- Project mean-across-versions calculations.
+- Macro project aggregation.
+- Pooled metric calculations.
+- Workbook sheet presence and expected coverage.
 
-Both preprocessing steps must be fitted only on the training projects in each outer fold.
+The full experiment must not be run until the relevant tests and protocol checks pass.
 
-`LinearSVC` does not provide native calibrated probabilities by default. The initial comparison can use its class predictions for the specified classification metrics. Any probability-based metrics or threshold-dependent decisions must be handled carefully and documented.
+## 18. Required deliverables and completion review
 
-### 8.3 Model scope
+The primary experiment is complete only when the following deliverables are available:
 
-No neural network is planned for this 20-hour practice experiment.
+- Reproducible experiment script.
+- 39-fold LOPO evaluation.
+- Random Forest predictions and metrics.
+- Majority-class Dummy baseline predictions and metrics.
+- Excel workbook with all required sheets.
+- Saved fold-specific models and preprocessing.
+- Separately labelled final all-data Random Forest model.
+- Run metadata and configuration.
+- Test results and final quality-assurance review.
 
-Optional models must not take priority over completing and reviewing the primary experiment.
+The final review must confirm:
 
-## 9. Reproducibility and implementation requirements
+- Exactly 39 outer folds were executed.
+- Every project was held out exactly once.
+- No training/test project leakage occurred.
+- Every expected project-version group is represented.
+- The project summaries use the specified unweighted mean across versions.
+- Macro project averages are calculated from project summaries.
+- Pooled metrics are calculated from combined held-out predictions.
+- Model artifacts and preprocessing settings are traceable.
+- The raw dataset was not modified.
 
-The implementation should follow these principles:
+## 19. Limitations
 
-1. **Keep raw data immutable.** Never overwrite `resources/ds.csv`. Derived data, logs, predictions, models, and workbooks belong in a separate output directory.
-2. **Separate responsibilities.** Keep data loading and auditing, preprocessing, model construction, evaluation, and reporting in separate modules.
-3. **Use explicit configuration.** Store the random seed, model parameters, target rule, feature exclusions, and metric conventions in a reproducible configuration.
-4. **Avoid leakage.** Fit all learned preprocessing and model components using outer-training projects only.
-5. **Automate folds.** Derive the 39 project folds from the dataset; do not hard-code a hand-picked list of projects.
-6. **Test invariants.** Add tests for target construction, feature exclusion, project disjointness, fold counts, missing-value handling, confusion-matrix accounting, and aggregation.
-7. **Record provenance.** Record input filename, file checksum, row count, project count, package versions, execution timestamp, and configuration with each run.
-8. **Preserve artifacts.** Save fold models together with their preprocessing, clearly naming each artifact by held-out project. Save the final all-data model separately and label it clearly.
-9. **Do not confuse fitting and evaluation.** The all-data model is for future use; its training scores are not cross-project evaluation results.
-10. **Keep outputs traceable.** Predictions should include project, version, class identifier, true target, predicted target, and fold/model identifier, subject to appropriate data-handling rules.
-11. **Use version control responsibly.** Keep virtual environments, secrets, raw datasets without redistribution permission, and generated model artifacts out of Git.
-12. **Document deviations.** Any change to the protocol must be recorded with its rationale and whether it was decided before or after inspecting results.
-
-## 10. Planned deliverables
-
-The required experiment is expected to produce:
-
-### 10.1 Experiment implementation
-
-- A reproducible Python script that runs the complete 39-fold LOPO experiment.
-- Tests covering the key data, fold, preprocessing, and evaluation invariants.
-
-### 10.2 Excel workbook
-
-An Excel workbook containing:
-
-| Sheet | Required contents |
-|---|---|
-| `Version Metrics` | One row per held-out project-version group, with metrics and support/confusion counts. |
-| `Project Summary` | Unweighted mean metrics across versions for each project. |
-| `Model Comparison` | Macro project-level results as the primary comparison, plus supplementary pooled metrics calculated from all held-out predictions. |
-| `Run Notes` | Target definition, exclusions, missing-value handling, split design, model settings, metric conventions, and limitations. |
-
-### 10.3 Model artifacts
-
-- Saved fold-specific Random Forest models and their preprocessing, named by held-out project.
-- A separately labelled final Random Forest fitted on all eligible rows for future use.
-- Run metadata and review checks confirming all 39 folds, project separation, workbook coverage, aggregation consistency, and saved settings.
-
-The final all-data model is a deployment or future-use artifact. Its training scores must not be presented as cross-project evaluation results.
-
-### 10.4 Output location
-
-All generated artifacts should be written to a new output directory within the project workspace. The raw CSV must remain unchanged.
-
-## 11. Required review before considering the experiment complete
-
-After the primary experiment has run, review all of the following:
-
-- [ ] All 39 projects were held out exactly once.
-- [ ] Every fold has disjoint training and test project sets.
-- [ ] Each test fold contains only its designated held-out project.
-- [ ] No held-out project contributed to preprocessing or model fitting.
-- [ ] Only the 21 approved predictors entered the primary model.
-- [ ] `nml`, `isOld`, `avg(cc)`, identifiers, and `bugs` were excluded from predictors.
-- [ ] Any feature dropped because it was entirely missing in a fold's training data was recorded.
-- [ ] All expected project-version groups appear in the workbook.
-- [ ] Missing version values are labelled consistently.
-- [ ] Confusion-matrix counts reconcile with group support.
-- [ ] Project summaries match the unweighted means across version groups.
-- [ ] Model comparison uses the specified project-level macro aggregation.
-- [ ] The primary Random Forest and Dummy baseline are both represented.
-- [ ] Saved models include their corresponding preprocessing.
-- [ ] The final all-data model is stored separately from fold models.
-- [ ] Run settings, package versions, and input checksum are recorded.
-- [ ] The original CSV remains unchanged.
-- [ ] Supplementary pooled metrics are calculated from the combined held-out predictions, not from weighted averages of project F1 or MCC scores.
-
-## 12. Experiment constraints and limitations
-
-- The 20-hour practice experiment prioritizes a rigorous and reproducible baseline over exhaustive optimization.
-- The dataset's original provenance, license, metric definitions, and collection procedures remain unverified. See `dataset-and-methodology.md`.
-- Project-level differences may reflect language, architecture, project size, development practices, metric extraction tools, or data collection choices. Model performance may therefore be affected by dataset shift.
-- A Random Forest's feature importance is not causal evidence and can be biased by correlated predictors and feature characteristics.
-- LOPO measures transfer to unseen projects in this dataset. It does not by itself demonstrate future-version prediction for a known project.
-- Version groups with very small support can yield unstable metrics. Support counts must accompany group-level scores.
-- Imputation can conceal informative missingness. The primary median-imputation pipeline is a baseline, not a definitive solution to the missing-data mechanism.
-- No results or performance claims should be written before the corresponding experiment has actually been executed and reviewed.
-
-## 13. Protocol change management
-
-Any change to the experimental design after this protocol is finalized must be documented.
-
-For each change, record:
-
-- What changed.
-- Why the change was necessary.
-- Whether it was decided before or after inspecting experimental results.
-- Which results or artifacts are affected.
-
-The primary protocol should remain distinguishable from sensitivity analyses and optional model comparisons.
+- The original dataset provenance, license, metric definitions, and extraction procedure have not yet been established.
+- Project-level differences may affect cross-project generalization.
+- The target is based on recorded bug counts and does not establish defect severity or discovery timing.
+- LOPO evaluates transfer to unseen projects in this dataset; it does not by itself demonstrate future-version prediction for an already known project.
+- Version groups with very small support may produce unstable metrics.
+- Median imputation is a practical baseline and does not explain the missing-data mechanism.
+- Feature importance from Random Forest is not causal evidence.
+- The supervisor-directed exclusion of six variables is a predefined feature-selection decision, not evidence that those variables have no predictive value.
 
 ---
 
-**Protocol boundary:** This document defines the planned experimental procedure and required deliverables. It contains no trained-model results, tuned hyperparameters, or claims about achieved predictive performance.
+**Protocol boundary:** This document defines the planned experiment and its implementation requirements. It contains no trained-model results or claims about achieved predictive performance.
