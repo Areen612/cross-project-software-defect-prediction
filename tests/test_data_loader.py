@@ -181,3 +181,19 @@ def test_validate_dataset_warns_about_unexpected_columns():
         match="Unexpected columns found"
     ):
         data_loader.validate_dataset(df)
+
+
+def test_load_dataset_treats_dash_as_missing(tmp_path, monkeypatch):
+    csv_path = tmp_path / "test_dataset.csv"
+
+    csv_path.write_text(
+        "Project,Version,Class,bugs,noc\n"
+        "Tomcat,1.0,ClassA,1,10\n"
+        "JEdit,2.0,ClassB,0,-\n"
+    )
+
+    monkeypatch.setattr(data_loader, "INPUT_PATH", csv_path)
+
+    result = data_loader.load_dataset()
+
+    assert pd.isna(result.loc[1, "noc"])

@@ -16,9 +16,13 @@ def load_dataset() -> DataFrame:
         raise ValueError(
             f"Dataset file is empty: {INPUT_PATH}"
         )
+        
     # low_memory=False is used to avoid dtype inference issues with large datasets
-    return pd.read_csv(INPUT_PATH, low_memory=False)
-
+    return pd.read_csv(
+        INPUT_PATH,
+        low_memory=False,
+        na_values=["-"],
+    )
 
 def validate_dataset(df: DataFrame) -> None:
     # 1. Check duplicate column names
