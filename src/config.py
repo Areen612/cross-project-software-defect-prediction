@@ -17,9 +17,13 @@ METADATA_COLUMNS = ["Project", "Version", "Class"]
 # Approved primary predictors
 FEATURES = [
     "noc", "cbo", "rfc", "lcom", "ca", "ce",
-    "npm", "lcom3", "loc", "dam", "moa",
-    "mfa", "cam", "ic", "cbm", "amc",
-    "nr", "ndc", "ndpv", "ner", "max(cc)"
+    "npm", "lcom3", "loc", "dam", "moa", "mfa",
+    "cam", "ic", "cbm", "amc", "nr", "ndc",
+]
+
+# Excluded features (not used in modeling)
+EXCLUDED_FEATURES = [
+    "nml", "isOld", "ndpv", "ner", "max(cc)", "avg(cc)",
 ]
 
 # Random Forest configuration
