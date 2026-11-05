@@ -13,7 +13,7 @@ def make_valid_dataframe() -> pd.DataFrame:
     We use synthetic data so tests do not depend on the full CSV.
     """
     required_columns = (
-        [config.SOURCE_COLUMN]
+        [config.BUG_COUNT_COLUMN]
         + config.METADATA_COLUMNS
         + config.FEATURES
     )
@@ -27,7 +27,7 @@ def make_valid_dataframe() -> pd.DataFrame:
     data["Project"] = ["Tomcat", "JEdit"]
     data["Version"] = ["1.0", "2.0"]
     data["Class"] = ["ClassA", "ClassB"]
-    data[config.SOURCE_COLUMN] = [1, 0]
+    data[config.BUG_COUNT_COLUMN] = [1, 0]
 
     return pd.DataFrame(data)
 
@@ -99,7 +99,7 @@ def test_validate_dataset_rejects_empty_dataframe():
 
     df = pd.DataFrame(
         columns=(
-            [config.SOURCE_COLUMN]
+            [config.BUG_COUNT_COLUMN]
             + config.METADATA_COLUMNS
             + config.FEATURES
         )
@@ -151,8 +151,8 @@ def test_validate_dataset_rejects_invalid_target_values(invalid_value):
 
     df = make_valid_dataframe()
 
-    df[config.SOURCE_COLUMN] = df[config.SOURCE_COLUMN].astype(object)
-    df.loc[0, config.SOURCE_COLUMN] = invalid_value
+    df[config.BUG_COUNT_COLUMN] = df[config.BUG_COUNT_COLUMN].astype(object)
+    df.loc[0, config.BUG_COUNT_COLUMN] = invalid_value
 
     with pytest.raises(ValueError):
         data_loader.validate_dataset(df)
@@ -162,7 +162,7 @@ def test_validate_dataset_accepts_numeric_string_targets():
     """Numeric strings should be accepted as valid target values."""
 
     df = make_valid_dataframe()
-    df[config.SOURCE_COLUMN] = ["1", "0"]
+    df[config.BUG_COUNT_COLUMN] = ["1", "0"]
 
     result = data_loader.validate_dataset(df)
 

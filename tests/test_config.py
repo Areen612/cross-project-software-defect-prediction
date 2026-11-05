@@ -3,7 +3,7 @@ from src.config import (
     EXCLUDED_FEATURES,
     FEATURES,
     METADATA_COLUMNS,
-    SOURCE_COLUMN,
+    BUG_COUNT_COLUMN,
 )
 
 
@@ -44,6 +44,6 @@ def test_excluded_features_are_not_primary_predictors():
 def test_metadata_and_target_are_not_predictors():
     """Identifiers and the target source must not enter the feature list."""
 
-    forbidden_columns = set(METADATA_COLUMNS + [SOURCE_COLUMN])
+    forbidden_columns = set(METADATA_COLUMNS + [BUG_COUNT_COLUMN])
 
     assert set(FEATURES).isdisjoint(forbidden_columns)

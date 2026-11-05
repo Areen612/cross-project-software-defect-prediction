@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
-from src.config import FEATURES, INPUT_PATH, METADATA_COLUMNS, SOURCE_COLUMN
+from src.config import FEATURES, INPUT_PATH, METADATA_COLUMNS, BUG_COUNT_COLUMN
 from src.data.target_validation import validate_bug_counts
 
 
@@ -39,7 +39,7 @@ def validate_dataset(df: DataFrame) -> None:
         raise ValueError("Dataset contains no observations")
 
     # 3. Check required columns
-    required_columns = [SOURCE_COLUMN] + METADATA_COLUMNS + FEATURES
+    required_columns = [BUG_COUNT_COLUMN] + METADATA_COLUMNS + FEATURES
 
     missing_columns = [
         col for col in required_columns
@@ -50,7 +50,7 @@ def validate_dataset(df: DataFrame) -> None:
         raise ValueError(f"Required columns missing: {missing_columns}")
 
     # 4. Validate target values using shared validation
-    validate_bug_counts(df[SOURCE_COLUMN])
+    validate_bug_counts(df[BUG_COUNT_COLUMN])
 
     # 5. Report unexpected columns
     unexpected_columns = [

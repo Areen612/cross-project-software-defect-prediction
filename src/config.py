@@ -8,7 +8,7 @@ INPUT_PATH = PROJECT_ROOT / "resources" / "ds.csv"
 OUTPUT_PATH = PROJECT_ROOT / "outputs"
 
 # Target configuration
-SOURCE_COLUMN = "bugs"
+BUG_COUNT_COLUMN = "bugs"
 TARGET_COLUMN = "buggy"
 
 # Metadata columns (not predictors)

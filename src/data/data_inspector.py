@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.config import FEATURES, SOURCE_COLUMN
+from src.config import FEATURES, BUG_COUNT_COLUMN
 from src.data.data_loader import load_dataset, validate_dataset
 
 
@@ -23,7 +23,7 @@ def inspect_missing_values(df: pd.DataFrame) -> None:
 
 def inspect_target_distribution(df: pd.DataFrame) -> None:
     print("\n--- Target distribution ---")
-    print(df[SOURCE_COLUMN].value_counts(dropna=False).to_string())
+    print(df[BUG_COUNT_COLUMN].value_counts(dropna=False).to_string())
 
 
 def inspect_project_distribution(df: pd.DataFrame) -> None:

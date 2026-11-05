@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.config import SOURCE_COLUMN, TARGET_COLUMN
+from src.config import BUG_COUNT_COLUMN, TARGET_COLUMN
 from src.data.target_validation import validate_bug_counts
 
 
@@ -18,9 +18,9 @@ def target_builder(df: pd.DataFrame) -> pd.DataFrame:
         ValueError: If the bug-count column is missing, contains invalid
                     values, or contains negative values.
     """
-    if SOURCE_COLUMN not in df.columns:
+    if BUG_COUNT_COLUMN not in df.columns:
         raise ValueError(
-            f"Required target source column '{SOURCE_COLUMN}' is missing."
+            f"Required target source column '{BUG_COUNT_COLUMN}' is missing."
         )
 
     if TARGET_COLUMN in df.columns:
@@ -30,7 +30,7 @@ def target_builder(df: pd.DataFrame) -> pd.DataFrame:
         )
     
     # Validate and convert bug counts using shared validation
-    bug_counts = validate_bug_counts(df[SOURCE_COLUMN])
+    bug_counts = validate_bug_counts(df[BUG_COUNT_COLUMN])
 
     # Create a copy to preserve the original DataFrame
     result = df.copy()
