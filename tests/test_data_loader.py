@@ -1,4 +1,4 @@
-
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -44,7 +44,6 @@ def test_load_dataset_returns_dataframe(tmp_path, monkeypatch):
     expected_df = make_valid_dataframe()
     expected_df.to_csv(csv_path, index=False)
 
-    # Replace the configured input path with our temporary CSV.
     monkeypatch.setattr(data_loader, "INPUT_PATH", csv_path)
 
     result = data_loader.load_dataset()
@@ -82,7 +81,7 @@ def test_load_dataset_raises_error_when_file_is_empty(
 
 
 # --------------------------------------------------
-# Tests for validate_dataset()
+# Tests for validate_dataset(): general validation
 # --------------------------------------------------
 
 def test_validate_dataset_accepts_valid_dataframe():
@@ -115,7 +114,6 @@ def test_validate_dataset_rejects_duplicate_columns():
 
     df = make_valid_dataframe()
 
-    # Add a second column with the same name.
     df = df.assign(Project_copy=df["Project"])
     df = df.rename(columns={"Project_copy": "Project"})
 
@@ -136,12 +134,16 @@ def test_validate_dataset_rejects_missing_required_column():
         data_loader.validate_dataset(df)
 
 
+# --------------------------------------------------
+# Tests for validate_dataset(): target validation
+# --------------------------------------------------
+
 @pytest.mark.parametrize(
     "invalid_value",
     [
-        None,       # Missing target
-        "unknown",  # Non-numeric target
-        -1,         # Negative target
+        None,
+        "unknown",
+        -1,
     ],
 )
 def test_validate_dataset_rejects_invalid_target_values(invalid_value):
@@ -149,10 +151,7 @@ def test_validate_dataset_rejects_invalid_target_values(invalid_value):
 
     df = make_valid_dataframe()
 
-    # Convert the target column to object dtype so it can hold
-    # both numeric and non-numeric test values.
     df[config.SOURCE_COLUMN] = df[config.SOURCE_COLUMN].astype(object)
-
     df.loc[0, config.SOURCE_COLUMN] = invalid_value
 
     with pytest.raises(ValueError):
@@ -183,7 +182,62 @@ def test_validate_dataset_warns_about_unexpected_columns():
         data_loader.validate_dataset(df)
 
 
+# --------------------------------------------------
+# Tests for validate_dataset(): predictor validation
+# --------------------------------------------------
+
+def test_validate_dataset_rejects_non_numeric_feature():
+    """A feature containing non-numeric values should be rejected."""
+
+    df = make_valid_dataframe()
+
+    feature = config.FEATURES[0]
+    df[feature] = [1, "unknown"]
+
+    with pytest.raises(ValueError, match="not numeric"):
+        data_loader.validate_dataset(df)
+
+
+@pytest.mark.parametrize(
+    "infinite_value",
+    [np.inf, -np.inf],
+)
+def test_validate_dataset_rejects_infinite_features(infinite_value):
+    """Positive and negative infinity in predictors should be rejected."""
+
+    df = make_valid_dataframe()
+
+    feature = config.FEATURES[0]
+
+    # Convert the feature column to float before inserting infinity.
+    df[feature] = df[feature].astype(float)
+
+    df.loc[df.index[0], feature] = infinite_value
+
+    with pytest.raises(ValueError, match="Infinite values"):
+        data_loader.validate_dataset(df)
+
+
+def test_validate_dataset_accepts_missing_feature_values():
+    """Missing predictor values should be allowed."""
+
+    df = make_valid_dataframe()
+
+    feature = config.FEATURES[0]
+    df.loc[df.index[0], feature] = np.nan
+
+    result = data_loader.validate_dataset(df)
+
+    assert result is None
+
+
+# --------------------------------------------------
+# Tests for load_dataset(): missing-value handling
+# --------------------------------------------------
+
 def test_load_dataset_treats_dash_as_missing(tmp_path, monkeypatch):
+    """Dash values in CSV files should be interpreted as missing."""
+
     csv_path = tmp_path / "test_dataset.csv"
 
     csv_path.write_text(
