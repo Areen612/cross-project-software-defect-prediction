@@ -1,13 +1,16 @@
-
 from pathlib import Path
-
-import pandas as pd
-import pytest
-
+from sklearn.dummy import DummyClassifier
+from sklearn.impute import SimpleImputer
 from src.evaluation.result_saver import (
     build_predictions_dataframe,
     save_predictions,
+    save_models,
 )
+
+import pandas as pd
+import pytest
+import joblib
+import numpy as np
 
 
 @pytest.fixture
@@ -232,3 +235,122 @@ def test_save_predictions_can_use_existing_directory(
     output_path = save_predictions(sample_results, output_dir)
 
     assert output_path.exists()
+    
+    
+# --------------------------------------------------
+# save_models tests
+# --------------------------------------------------
+
+
+@pytest.fixture
+def sample_model_results(sample_results):
+    """Add fitted, serializable models and imputers to fold results."""
+
+    for result in sample_results:
+        result["held_out_project"] = (
+            result["metadata_test"]["Project"].iloc[0]
+        )
+
+        model = DummyClassifier(strategy="most_frequent")
+        model.fit(
+            np.array([[0], [1]]),
+            np.array([False, True]),
+        )
+
+        imputer = SimpleImputer(strategy="median")
+        imputer.fit(np.array([[1.0], [3.0]]))
+
+        result["model"] = model
+        result["imputer"] = imputer
+        result["dropped_features"] = []
+
+    sample_results[1]["dropped_features"] = ["cam"]
+
+    return sample_results
+
+
+def test_save_models_creates_models_directory(
+    sample_model_results, tmp_path
+):
+    save_models(sample_model_results, tmp_path)
+
+    assert (tmp_path / "models").is_dir()
+
+
+def test_save_models_creates_one_file_per_fold(
+    sample_model_results, tmp_path
+):
+    saved_paths = save_models(sample_model_results, tmp_path)
+
+    assert len(saved_paths) == 2
+
+    assert {path.name for path in saved_paths} == {
+        "project_A.joblib",
+        "project_B.joblib",
+    }
+
+
+def test_save_models_returns_saved_file_paths(
+    sample_model_results, tmp_path
+):
+    saved_paths = save_models(sample_model_results, tmp_path)
+
+    assert all(isinstance(path, Path) for path in saved_paths)
+    assert all(path.exists() for path in saved_paths)
+
+
+def test_save_models_accepts_string_output_directory(
+    sample_model_results, tmp_path
+):
+    output_dir = str(tmp_path / "string_output")
+
+    saved_paths = save_models(sample_model_results, output_dir)
+
+    assert len(saved_paths) == 2
+    assert all(path.exists() for path in saved_paths)
+
+
+def test_save_models_accepts_path_output_directory(
+    sample_model_results, tmp_path
+):
+    output_dir = tmp_path / "path_output"
+
+    saved_paths = save_models(sample_model_results, output_dir)
+
+    assert len(saved_paths) == 2
+    assert all(path.exists() for path in saved_paths)
+
+
+def test_save_models_saves_complete_model_bundle(
+    sample_model_results, tmp_path
+):
+    saved_paths = save_models(sample_model_results, tmp_path)
+
+    loaded_bundle = joblib.load(saved_paths[0])
+
+    assert loaded_bundle["held_out_project"] == "project_A"
+    assert isinstance(loaded_bundle["model"], DummyClassifier)
+    assert isinstance(loaded_bundle["imputer"], SimpleImputer)
+    assert loaded_bundle["dropped_features"] == []
+
+
+def test_save_models_preserves_dropped_features(
+    sample_model_results, tmp_path
+):
+    saved_paths = save_models(sample_model_results, tmp_path)
+
+    project_b_path = next(
+        path for path in saved_paths if path.stem == "project_B"
+    )
+
+    loaded_bundle = joblib.load(project_b_path)
+
+    assert loaded_bundle["dropped_features"] == ["cam"]
+
+
+def test_save_models_rejects_empty_results(tmp_path):
+    with pytest.raises(
+        ValueError,
+        match="Experiment results cannot be empty",
+    ):
+        save_models([], tmp_path)

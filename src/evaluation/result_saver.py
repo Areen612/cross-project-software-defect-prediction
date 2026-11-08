@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import pandas as pd
+import joblib
 
 
 def build_predictions_dataframe(results: list[dict]) -> pd.DataFrame:
@@ -74,3 +75,52 @@ def save_predictions(
     predictions_df.to_csv(output_path, index=False)
 
     return output_path
+
+
+def save_models(
+    fold_results: list[dict],
+    output_dir: str | Path,
+) -> list[Path]:
+    """
+    Save fitted models and their corresponding imputers from each LOPO fold.
+
+    Each model bundle contains the held-out project, fitted Random Forest,
+    fitted imputer, and features dropped during imputation.
+
+    Parameters
+    ----------
+    fold_results : list[dict]
+        Results from each LOPO fold.
+    output_dir : str or Path
+        Main experiment output directory.
+
+    Returns
+    -------
+    list[Path]
+        Paths to the saved model bundles.
+    """
+    if not fold_results:
+        raise ValueError("Experiment results cannot be empty.")
+
+    models_dir = Path(output_dir) / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_model_paths = []
+
+    for result in fold_results:
+        project = result["held_out_project"]
+
+        model_bundle = {
+            "held_out_project": project,
+            "model": result["model"],
+            "imputer": result["imputer"],
+            "dropped_features": result["dropped_features"],
+        }
+
+        model_path = models_dir / f"{project}.joblib"
+
+        joblib.dump(model_bundle, model_path)
+
+        saved_model_paths.append(model_path)
+
+    return saved_model_paths
