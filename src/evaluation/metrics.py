@@ -1,3 +1,4 @@
+import math
 
 import pandas as pd
 
@@ -51,6 +52,40 @@ NUMERIC_METRIC_COLUMNS = [
     "TP",
 ]
 
+VERSION_METRICS = [
+    "Accuracy",
+    "Precision",
+    "Recall",
+    "F1",
+]
+
+
+def _calculate_pooled_mcc(
+    tn: int,
+    fp: int,
+    fn: int,
+    tp: int,
+) -> float:
+    """
+    Calculate MCC from combined confusion matrix counts.
+
+    Returns zero when the denominator is zero, following
+    scikit-learn's MCC convention.
+    """
+    numerator = (tp * tn) - (fp * fn)
+
+    denominator = math.sqrt(
+        (tp + fp)
+        * (tp + fn)
+        * (tn + fp)
+        * (tn + fn)
+    )
+
+    if denominator == 0:
+        return 0.0
+
+    return numerator / denominator
+
 
 def evaluate_predictions(
     predictions_dataframe: pd.DataFrame,
@@ -69,7 +104,9 @@ def evaluate_predictions(
         with classification metrics and confusion matrix counts.
     """
     if predictions_dataframe.empty:
-        raise ValueError("Input DataFrame is empty. Cannot evaluate predictions.")
+        raise ValueError(
+            "Input DataFrame is empty. Cannot evaluate predictions."
+        )
 
     missing_columns = VERSION_INPUT_COLUMNS - set(
         predictions_dataframe.columns
@@ -90,7 +127,9 @@ def evaluate_predictions(
         )
 
     for column in ["Actual", "Predicted"]:
-        if not pd.api.types.is_bool_dtype(predictions_dataframe[column]):
+        if not pd.api.types.is_bool_dtype(
+            predictions_dataframe[column]
+        ):
             raise ValueError(
                 f"Column '{column}' must have boolean dtype."
             )
@@ -157,18 +196,25 @@ def aggregate_project_metrics(
     """
     Aggregate version-level metrics into one summary row per project.
 
-    Classification metrics are averaged equally across versions.
-    Counts are summed across versions.
+    Primary metrics:
+        Accuracy, Precision, Recall, and F1 are averaged equally
+        across versions.
+        MCC is averaged across informative versions only.
 
-    MCC is averaged only across versions marked as informative.
+    Supplementary metrics:
+        Accuracy, Precision, Recall, and F1 are also calculated
+        as support-weighted means across versions.
+        Pooled MCC is calculated from the combined confusion counts.
+
+    Counts are summed across versions.
 
     Parameters:
         version_metrics_dataframe: DataFrame containing one row per
             Project-Version group and its evaluation metrics.
 
     Returns:
-        DataFrame containing one row per project, with mean metrics,
-        total counts, version count, and informative MCC version count.
+        DataFrame containing one row per project, with unweighted
+        metrics, weighted metrics, pooled MCC, and total counts.
     """
     if version_metrics_dataframe.empty:
         raise ValueError(
@@ -211,7 +257,11 @@ def aggregate_project_metrics(
             f"Metric columns must be numeric: {non_numeric_columns}"
         )
 
+    if (version_metrics_dataframe["Support"] <= 0).any():
+        raise ValueError("Support must be greater than zero.")
+
     valid_mcc_statuses = {"Informative", "Not informative"}
+
     if not version_metrics_dataframe["MCC_Status"].isin(
         valid_mcc_statuses
     ).all():
@@ -222,13 +272,21 @@ def aggregate_project_metrics(
 
     working_dataframe = version_metrics_dataframe.copy()
 
-    working_dataframe["MCC_for_mean"] = working_dataframe["MCC"].where(
+    # Exclude non-informative MCC values from the unweighted mean.
+    working_dataframe["MCC"] = working_dataframe["MCC"].where(
         working_dataframe["MCC_Status"] == "Informative"
     )
 
+    # Count the number of versions contributing to the MCC mean.
     working_dataframe["MCC_Informative_Flag"] = (
         working_dataframe["MCC_Status"] == "Informative"
     )
+
+    # Prepare numerator columns for support-weighted metrics.
+    for metric in VERSION_METRICS:
+        working_dataframe[f"{metric}_Weighted_Numerator"] = (
+            working_dataframe[metric] * working_dataframe["Support"]
+        )
 
     project_metrics_dataframe = (
         working_dataframe
@@ -242,16 +300,75 @@ def aggregate_project_metrics(
             Support=("Support", "sum"),
             Buggy_Count=("Buggy_Count", "sum"),
             Non_Buggy_Count=("Non_Buggy_Count", "sum"),
+
+            # Primary: unweighted mean across versions.
             Accuracy=("Accuracy", "mean"),
             Precision=("Precision", "mean"),
             Recall=("Recall", "mean"),
             F1=("F1", "mean"),
-            MCC=("MCC_for_mean", "mean"),
+            MCC=("MCC", "mean"),
+
             MCC_Informative_Versions=("MCC_Informative_Flag", "sum"),
+
+            # Supplementary: weighted metric numerators.
+            Accuracy_Weighted_Numerator=(
+                "Accuracy_Weighted_Numerator", "sum"
+            ),
+            Precision_Weighted_Numerator=(
+                "Precision_Weighted_Numerator", "sum"
+            ),
+            Recall_Weighted_Numerator=(
+                "Recall_Weighted_Numerator", "sum"
+            ),
+            F1_Weighted_Numerator=(
+                "F1_Weighted_Numerator", "sum"
+            ),
+
+            # Combined confusion matrix counts.
             TN=("TN", "sum"),
             FP=("FP", "sum"),
             FN=("FN", "sum"),
             TP=("TP", "sum"),
+        )
+    )
+
+    # Calculate support-weighted means.
+    for metric in VERSION_METRICS:
+        numerator_column = f"{metric}_Weighted_Numerator"
+        weighted_column = f"{metric}_Weighted"
+
+        project_metrics_dataframe[weighted_column] = (
+            project_metrics_dataframe[numerator_column]
+            / project_metrics_dataframe["Support"]
+        )
+
+        project_metrics_dataframe = project_metrics_dataframe.drop(
+            columns=numerator_column
+        )
+
+    # Calculate pooled MCC from the combined confusion counts.
+    project_metrics_dataframe["Pooled_MCC"] = (
+        project_metrics_dataframe.apply(
+            lambda row: _calculate_pooled_mcc(
+                tn=int(row["TN"]),
+                fp=int(row["FP"]),
+                fn=int(row["FN"]),
+                tp=int(row["TP"]),
+            ),
+            axis=1,
+        )
+    )
+
+    # Flag pooled MCC when the combined actual labels contain one class.
+    project_metrics_dataframe["Pooled_MCC_Status"] = (
+        project_metrics_dataframe.apply(
+            lambda row: (
+                "Not informative"
+                if row["Buggy_Count"] == 0
+                or row["Non_Buggy_Count"] == 0
+                else "Informative"
+            ),
+            axis=1,
         )
     )
 
