@@ -1,8 +1,8 @@
-
 from pathlib import Path
 
 import pandas as pd
 import joblib
+import json
 
 
 def build_predictions_dataframe(results: list[dict]) -> pd.DataFrame:
@@ -124,3 +124,32 @@ def save_models(
         saved_model_paths.append(model_path)
 
     return saved_model_paths
+
+
+def save_experiment_metadata(
+    metadata: dict,
+    output_dir: str | Path,
+) -> Path:
+    """
+    Save experiment metadata as a JSON file.
+
+    Parameters:
+        metadata: Dictionary containing experiment metadata.
+        output_dir: Directory where metadata.json will be saved.
+
+    Returns:
+        Path to the saved metadata file.
+    """
+    # Create output_dir if it doesn't exist.
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save the supplied metadata as metadata.json.
+    metadata_path = output_dir / "metadata.json"
+    
+    # Format the JSON with indentation (indent=4) for readability.
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=4)
+        
+        
+    return metadata_path

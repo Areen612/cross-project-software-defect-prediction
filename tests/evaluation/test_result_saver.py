@@ -5,12 +5,14 @@ from src.evaluation.result_saver import (
     build_predictions_dataframe,
     save_predictions,
     save_models,
+    save_experiment_metadata
 )
 
 import pandas as pd
+import numpy as np
 import pytest
 import joblib
-import numpy as np
+import json
 
 
 @pytest.fixture
@@ -354,3 +356,82 @@ def test_save_models_rejects_empty_results(tmp_path):
         match="Experiment results cannot be empty",
     ):
         save_models([], tmp_path)
+
+
+# --------------------------------------------------
+# save_experiment_metadata tests
+# --------------------------------------------------
+
+
+@pytest.fixture
+def sample_metadata():
+    return {
+        "experiment": {
+            "dataset": "ds.csv",
+            "number_of_observations": 110917,
+            "number_of_projects": 39,
+            "number_of_folds": 39,
+        },
+        "model": {
+            "name": "RandomForestClassifier",
+            "n_estimators": 200,
+            "max_features": "sqrt",
+            "random_state": 42,
+        },
+        "preprocessing": {
+            "imputation_strategy": "median",
+            "dropped_features": {
+                "project_A": [],
+                "project_B": ["cam"],
+            },
+        },
+    }
+
+
+def test_save_experiment_metadata_creates_json_file(
+    sample_metadata, tmp_path
+):
+    saved_path = save_experiment_metadata(sample_metadata, tmp_path)
+
+    assert saved_path.exists()
+    assert saved_path.is_file()
+    assert saved_path.name == "metadata.json"
+
+
+def test_save_experiment_metadata_preserves_content(
+    sample_metadata, tmp_path
+):
+    saved_path = save_experiment_metadata(sample_metadata, tmp_path)
+
+    with saved_path.open("r", encoding="utf-8") as file:
+        loaded_metadata = json.load(file)
+
+    assert loaded_metadata == sample_metadata
+
+
+def test_save_experiment_metadata_creates_missing_directory(
+    sample_metadata, tmp_path
+):
+    output_dir = tmp_path / "nested" / "experiment"
+
+    saved_path = save_experiment_metadata(sample_metadata, output_dir)
+
+    assert output_dir.exists()
+    assert saved_path.exists()
+
+
+def test_save_experiment_metadata_returns_path(
+    sample_metadata, tmp_path
+):
+    saved_path = save_experiment_metadata(sample_metadata, tmp_path)
+
+    assert saved_path == tmp_path / "metadata.json"
+
+
+def test_save_experiment_metadata_supports_empty_metadata(tmp_path):
+    saved_path = save_experiment_metadata({}, tmp_path)
+
+    with saved_path.open("r", encoding="utf-8") as file:
+        loaded_metadata = json.load(file)
+
+    assert loaded_metadata == {}
