@@ -8,6 +8,8 @@ from src.evaluation.metrics import (
     aggregate_project_metrics,
     calculate_macro_average,
     evaluate_predictions,
+    calculate_project_pooled_metrics,
+    calculate_project_pooled_macro_average,
 )
 
 @pytest.fixture
@@ -803,3 +805,29 @@ def test_calculate_macro_average_rejects_missing_project(
 
     with pytest.raises(ValueError, match="Project cannot contain missing"):
         calculate_macro_average(sample_project_metrics)
+
+
+def test_project_pooled_metrics_combine_all_versions(sample_predictions):
+    pooled = calculate_project_pooled_metrics(sample_predictions)
+    project_a = pooled.set_index("Project").loc["A"]
+    assert project_a["Support"] == 6
+    assert project_a["Accuracy"] == pytest.approx(4 / 6)
+    assert project_a["TN"] == 1
+    assert project_a["FP"] == 2
+    assert project_a["FN"] == 1
+    assert project_a["TP"] == 2
+
+
+def test_project_pooled_macro_average_gives_each_project_equal_weight(sample_predictions):
+    pooled = calculate_project_pooled_metrics(sample_predictions)
+    macro = calculate_project_pooled_macro_average(pooled)
+    expected = pooled["Accuracy"].mean()
+    assert macro.loc[0, "Accuracy"] == pytest.approx(expected)
+    assert macro.loc[0, "Project_Count"] == 2
+
+
+def test_project_pooled_macro_excludes_non_informative_mcc(sample_predictions):
+    pooled = calculate_project_pooled_metrics(sample_predictions)
+    pooled.loc[pooled["Project"] == "B", "MCC_Status"] = "Not informative"
+    macro = calculate_project_pooled_macro_average(pooled)
+    assert macro.loc[0, "MCC_Informative_Projects"] == 1
