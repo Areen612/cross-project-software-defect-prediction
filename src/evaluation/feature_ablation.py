@@ -16,7 +16,12 @@ from src.data.data_loader import load_dataset, validate_dataset
 from src.data.target_builder import target_builder
 from src.data.data_preparation import prepare_modeling_data
 from src.evaluation.lopo import generate_lopo_splits
-from src.evaluation.metrics import evaluate_predictions, aggregate_project_metrics, calculate_macro_average
+from src.evaluation.metrics import (
+    evaluate_predictions,
+    aggregate_project_metrics,
+    calculate_macro_average,
+)
+from src.evaluation.prediction_alignment import validate_prediction_alignment
 from src.models.fold_trainer import train_fold
 
 ABLATION_CONFIGURATIONS = {
@@ -39,7 +44,7 @@ def _validate_configurations(configurations: dict[str, list[str]]) -> None:
         unknown = sorted(set(removed) - set(FEATURES))
         if unknown:
             raise ValueError(f"Unknown features in '{name}': {unknown}")
-        if len(set(removed)) != len(removed):
+            if len(set(removed)) != len(removed):
             raise ValueError(f"Duplicate removed features in '{name}'.")
         if len(removed) == len(FEATURES):
             raise ValueError(f"Configuration '{name}' cannot remove every feature.")
@@ -72,7 +77,6 @@ def _build_ablation_predictions(
     predictions = predictions[["Project", "Version", "Class", "Actual", "Predicted"]]
     if len(predictions) != len(X) or predictions[["Actual", "Predicted"]].isna().any().any():
         raise RuntimeError("Ablation prediction coverage or label validation failed.")
-    from src.evaluation.prediction_alignment import validate_prediction_alignment
     expected = metadata[["Project", "Version", "Class"]].copy()
     expected["Actual"] = y.to_numpy()
     validate_prediction_alignment(expected, predictions)
@@ -99,7 +103,7 @@ def run_feature_ablation(
     if not reference_predictions_path.is_file() or not reference_metadata_path.is_file():
         raise FileNotFoundError("Reference run must contain predictions.csv and metadata.json.")
 
-    configurations = configurations or ABLATION_CONFIGURATIONS
+    configurations = ABLATION_CONFIGURATIONS if configurations is None else configurations
     _validate_configurations(configurations)
 
     dataset = load_dataset()
@@ -114,11 +118,17 @@ def run_feature_ablation(
     validate_prediction_alignment(reference, expected)
 
     root = output_dir / "feature_ablation"
+    if root.exists() and any(root.iterdir()):
+        raise FileExistsError(
+            f"Feature-ablation output already exists and is not empty: {root}. "
+            "Choose a new reference run copy or move the previous ablation directory."
+        )
     root.mkdir(parents=True, exist_ok=True)
     all_project, all_version, all_macro = [], [], []
     run_manifest = {
         "experiment": "Feature ablation with Leave-One-Project-Out",
         "created_at": datetime.now().astimezone().isoformat(),
+        "reference_run": str(output_dir),
         "dataset": "ds.csv",
         "observations": len(X),
         "projects": int(metadata["Project"].nunique()),
@@ -141,7 +151,6 @@ def run_feature_ablation(
         predictions, folds, runtime_seconds = _build_ablation_predictions(
             X, y, metadata, removed
         )
-        from src.evaluation.prediction_alignment import validate_prediction_alignment
         validate_prediction_alignment(reference, predictions)
         version, project, macro = _evaluate_variant(predictions)
         variant_dir = root / name
