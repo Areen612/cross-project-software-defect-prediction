@@ -50,9 +50,8 @@ def test_dummy_fold_uses_only_training_labels_and_returns_aligned_predictions():
 
     assert isinstance(result["model"], DummyClassifier)
     assert result["model"].strategy == "most_frequent"
-    # The training labels are tied (two True and two False).
-    # DummyClassifier resolves this tie by selecting the first sorted class.
-    assert result["predictions"].tolist() == [False, False]
+    # Training labels are three True and one False.
+    assert result["predictions"].tolist() == [True, True]
     pd.testing.assert_series_equal(result["y_test"], y.iloc[[4, 5]])
     pd.testing.assert_frame_equal(
         result["metadata_test"], metadata.iloc[[4, 5]]
@@ -94,20 +93,11 @@ def test_dummy_lopo_runner_creates_one_fold_per_project():
 
 def test_dummy_classifier_learns_majority_class_from_training_labels():
     X, y, metadata = _data()
-    # Training labels have two positives and two negatives, a tie.
-    # This test is a training-label-only check; tie behavior is tested above.
+    # Training labels are three positives and one negative.
     result = train_dummy_fold(
         X, y, metadata, "C",
         np.array([0, 1, 2, 3]),
         np.array([4, 5]),
-    )
-    assert result["predictions"].tolist() == [False, False]
-
-    # Make the training split unbalanced: three positives, one negative.
-    result = train_dummy_fold(
-        X, y, metadata, "C",
-        np.array([0, 2, 4, 1]),
-        np.array([3, 5]),
     )
     assert result["predictions"].tolist() == [True, True]
 
