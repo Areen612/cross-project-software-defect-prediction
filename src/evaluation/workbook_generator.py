@@ -159,6 +159,7 @@ def _build_run_notes(
     version_metrics: pd.DataFrame,
     project_metrics: pd.DataFrame,
     macro_metrics: pd.DataFrame,
+    dummy_available: bool = False,
 ) -> pd.DataFrame:
     experiment = metadata.get("experiment", {})
     model = metadata.get("model", {})
@@ -221,7 +222,11 @@ def _build_run_notes(
         ),
         (
             "Dummy baseline",
-            "Not yet run; no baseline results are fabricated in this workbook.",
+            (
+                "Evaluated using the same LOPO protocol."
+                if dummy_available
+                else "Not yet run; no baseline results are fabricated in this workbook."
+            ),
         ),
     ]
     return pd.DataFrame(notes, columns=["Item", "Value"])
@@ -361,6 +366,7 @@ def generate_evaluation_workbook(
         version_metrics,
         project_metrics,
         macro_metrics,
+        dummy_available=dummy_macro_metrics is not None,
     )
 
     if output_path is None:
