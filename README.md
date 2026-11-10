@@ -126,7 +126,22 @@ The analysis reports:
 
 It also summarizes performance across projects and versions using descriptive statistics.
 
-The purpose is to investigate whether model performance remains consistent across different held-out projects and versions, rather than relying exclusively on overall performance.
+#### Interpretation
+
+The Random Forest consistently outperformed the Dummy baseline across the evaluated projects and versions:
+
+- At the project level, it achieved higher accuracy and F1-score in 37 of 39 projects and tied in the remaining two.
+- At the version level, it performed better in 90 of 93 groups and tied in the other three.
+- Its average specificity was 96.42%, compared with 0% for the Dummy baseline.
+- Its average balanced accuracy was 98.19%, compared with 50% for the Dummy baseline.
+
+The Dummy baseline predicted every observation as buggy. Although this gave it 100% buggy-class recall, it failed to identify any non-buggy observations.
+
+The Random Forest's higher specificity and balanced accuracy indicate that it learned to distinguish between the two classes rather than simply favoring the majority class.
+
+There was some variation between projects. The lowest Random Forest MCC was 0.805 for `student-22`, which contained only 37 observations, including three non-buggy observations. The model misclassified one of those three.
+
+These results suggest strong and relatively consistent performance on the evaluated dataset. However, they do not establish generalization to unrelated datasets or rule out possible dataset-related effects.
 
 ### Feature ablation
 
@@ -146,23 +161,54 @@ Each configuration is trained and evaluated independently across all 39 folds.
 
 The purpose is to examine whether the model's predictive performance depends heavily on these selected features.
 
+#### Interpretation
+
+Removing the selected predictors resulted in only small changes in average F1-score:
+
+- Removing LOC reduced macro F1 by 0.035 percentage points.
+- Removing NOC reduced macro F1 by 0.041 percentage points.
+- Removing LOC and NOC together reduced it by 0.051 percentage points.
+- Removing all four selected features (LOC, NOC, CA, CE) produced the largest reduction of 0.065 percentage points.
+
+The combined removal of all four features changed 60 predictions out of 110,917. The effects varied across project versions: F1 decreased in 24 versions, remained unchanged in 64, and improved in 5.
+
+These findings suggest that the model's average F1-score is relatively insensitive to the removal of the selected predictors under the current experimental setup.
+
 Feature ablation is a sensitivity analysis; it does not establish causal relationships between software metrics and defects.
 
 ## Evaluation metrics
 
 The experiments use multiple classification metrics:
 
-| Metric | Description |
+| Metric | What it evaluates |
 |---|---|
-| Accuracy | Proportion of correctly classified observations |
-| Precision | Proportion of predicted buggy observations that are actually buggy |
-| Recall | Proportion of actual buggy observations correctly identified |
-| Specificity | Proportion of actual non-buggy observations correctly identified |
-| Balanced Accuracy | Average of sensitivity and specificity |
-| F1-score | Harmonic mean of precision and recall |
-| MCC | Correlation between actual and predicted binary classifications |
+| Accuracy | Overall proportion of correctly classified observations |
+| Precision | How reliable the model's positive (buggy) predictions are |
+| Recall | How many actual buggy observations the model identifies |
+| Specificity | How many actual non-buggy observations the model identifies |
+| Balanced Accuracy | Average performance across the buggy and non-buggy classes |
+| F1-score | Balance between precision and recall |
+| MCC | Overall correlation between actual and predicted classifications, accounting for all four confusion-matrix outcomes |
 
 Because the dataset is imbalanced, accuracy and F1-score are interpreted alongside specificity, balanced accuracy, and MCC.
+
+### Supplementary evaluation and aggregation approaches
+
+In addition to the primary project-level and version-level metrics, supplementary aggregation approaches provide different perspectives on model performance.
+
+| Approach | What gets combined? | What it tells us |
+|---|---|---|
+| Unweighted | Version metric values, with equal weight for each version | Typical version performance |
+| Support-weighted | Version metric values, weighted by the number of classes in each version | Average version performance, with larger versions contributing more |
+| Pooled MCC | TP, TN, FP, and FN counts are combined first; MCC is then calculated | Overall discrimination across all combined predictions |
+
+These approaches answer different questions:
+
+- **Unweighted aggregation** treats every version equally, regardless of its number of observations.
+- **Support-weighted aggregation** gives larger versions more influence because they contain more class observations.
+- **Pooled MCC** combines the underlying prediction counts before calculating MCC, rather than averaging individual version MCC values.
+
+These results should be interpreted separately because they represent different aggregation perspectives.
 
 MCC can be undefined for groups where the metric's mathematical denominator is zero. Undefined values are not treated as zero when calculating summary statistics.
 
@@ -203,13 +249,13 @@ Removing all four selected predictors changed 60 predictions out of 110,917. The
 
 These findings suggest that the model's average F1-score is relatively insensitive to the removal of the selected predictors under the current experimental setup.
 
-### Interpretation
+### Overall interpretation
 
 The preliminary results show strong Random Forest performance across the evaluated projects and versions, as well as limited average F1-score changes under the tested feature-removal configurations.
 
-However, these findings are specific to the current dataset and evaluation protocol. They do not independently establish generalization to unrelated datasets or rule out possible dataset-related effects.
+The robustness analysis shows that the model outperforms a majority-class baseline across the evaluated projects and versions. The feature-ablation analysis suggests that its performance does not depend heavily on the four selected predictors.
 
-Further investigation is planned to examine cross-project feature overlap, duplicate observations, and dataset provenance.
+However, these findings are specific to the current dataset and evaluation protocol. They do not independently establish generalization to unrelated datasets or rule out possible dataset-related effects.
 
 ## Project structure
 
