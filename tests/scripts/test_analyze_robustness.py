@@ -8,6 +8,7 @@ def _write_predictions(run_dir):
     frame = pd.DataFrame({
         "Project": ["A", "A", "B", "B"],
         "Version": ["1", "1", "1", "1"],
+        "Class": ["A1", "A2", "B1", "B2"],
         "Actual": [True, False, True, False],
         "Predicted": [True, False, True, True],
     })
