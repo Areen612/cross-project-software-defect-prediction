@@ -811,7 +811,7 @@ def test_project_pooled_metrics_combine_all_versions(sample_predictions):
     pooled = calculate_project_pooled_metrics(sample_predictions)
     project_a = pooled.set_index("Project").loc["A"]
     assert project_a["Support"] == 6
-    assert project_a["Accuracy"] == pytest.approx(4 / 6)
+    assert project_a["Accuracy"] == pytest.approx(3 / 6)
     assert project_a["TN"] == 1
     assert project_a["FP"] == 2
     assert project_a["FN"] == 1

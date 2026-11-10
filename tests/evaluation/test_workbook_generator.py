@@ -108,9 +108,20 @@ def test_project_pooled_sheet_reports_project_and_macro_rows(run_directory):
     headers = rows[0]
     level_index = headers.index("Evaluation_Level")
     model_index = headers.index("Model")
-    assert sum(row[level_index] == "Project pooled" for row in rows[1:]) == 2
-    assert sum(row[level_index] == "Project-pooled macro average" for row in rows[1:]) == 1
-    assert all(row[model_index] == "Random Forest" for row in rows[1:])
+    project_rows = [row for row in rows[1:] if row[level_index] == "Project pooled"]
+    macro_rows = [
+        row for row in rows[1:]
+        if row[level_index] == "Project-pooled macro average"
+    ]
+    expected_models = {"Random Forest", "Dummy (most_frequent)"}
+    assert len(project_rows) == 4  # two projects for each of two models
+    assert len(macro_rows) == 2  # one macro row for each model
+    assert {row[model_index] for row in project_rows} == expected_models
+    assert {row[model_index] for row in macro_rows} == expected_models
+    assert all(
+        sum(row[model_index] == model for row in project_rows) == 2
+        for model in expected_models
+    )
     workbook.close()
 
 
@@ -143,7 +154,7 @@ def test_run_notes_include_model_dataset_and_methodology(run_directory):
     assert notes["Dataset"] == "ds.csv"
     assert notes["Target definition"] == "buggy = bugs > 0"
     assert notes["Imputation"] == "median"
-    assert "equal project weighting" in notes["Macro averaging"]
+    assert "Each project contributes equally" in notes["Macro averaging"]
     assert notes["Dummy baseline"].startswith("Not yet run")
     assert "pooled within each project" in notes["Project Pooled aggregation"]
     workbook.close()
