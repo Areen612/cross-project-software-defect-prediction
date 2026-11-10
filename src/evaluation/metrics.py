@@ -233,7 +233,11 @@ def evaluate_predictions(
                 y_pred,
                 zero_division=0,
             ),
-            "MCC": matthews_corrcoef(y_true, y_pred),
+            "MCC": (
+                matthews_corrcoef(y_true, y_pred)
+                if mcc_status == "Informative"
+                else 0.0
+            ),
             "MCC_Status": mcc_status,
             "TN": int(tn),
             "FP": int(fp),
