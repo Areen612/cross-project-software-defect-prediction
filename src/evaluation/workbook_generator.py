@@ -84,80 +84,73 @@ def _validate_predictions(predictions: pd.DataFrame) -> None:
             predictions[column] = predictions[column].astype(bool)
 
 
-def _build_model_comparison(macro_metrics: pd.DataFrame) -> pd.DataFrame:
-    """Create RF comparison rows; Dummy is explicitly marked pending."""
-    macro = macro_metrics.iloc[0]
-    informative_mcc_count = int(macro["MCC_Informative_Projects"])
-    informative_pooled_count = int(macro["Pooled_MCC_Informative_Projects"])
-
-    rf_metrics = [
-        ("Accuracy", macro["Accuracy"], "All projects", "Equal project weighting."),
-        ("Precision", macro["Precision"], "All projects", "Equal project weighting."),
-        ("Recall", macro["Recall"], "All projects", "Equal project weighting."),
-        ("F1", macro["F1"], "All projects", "Equal project weighting."),
+def _build_model_comparison(
+    rf_macro_metrics: pd.DataFrame,
+    dummy_macro_metrics: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Create a comparable macro-metric table for RF and Dummy."""
+    metric_specs = [
+        ("Accuracy", "Accuracy", "All projects"),
+        ("Precision", "Precision", "All projects"),
+        ("Recall", "Recall", "All projects"),
+        ("F1", "F1", "All projects"),
         (
             "MCC",
-            macro["MCC"],
-            f"{informative_mcc_count} informative projects",
-            "Mean of project-level MCC; projects without informative version-level MCC are excluded.",
+            "MCC",
+            "Mean of projects with informative version-level MCC",
         ),
         (
             "Pooled MCC",
-            macro["Pooled_MCC"],
-            f"{informative_pooled_count} informative projects",
-            "Mean of project-level pooled MCC; non-informative pooled results are excluded.",
+            "Pooled_MCC",
+            "Mean of projects with informative pooled MCC",
         ),
-        (
-            "Support-weighted Accuracy",
-            macro["Accuracy_Weighted"],
-            "All projects",
-            "Macro mean of project support-weighted version metrics.",
-        ),
-        (
-            "Support-weighted Precision",
-            macro["Precision_Weighted"],
-            "All projects",
-            "Macro mean of project support-weighted version metrics.",
-        ),
-        (
-            "Support-weighted Recall",
-            macro["Recall_Weighted"],
-            "All projects",
-            "Macro mean of project support-weighted version metrics.",
-        ),
-        (
-            "Support-weighted F1",
-            macro["F1_Weighted"],
-            "All projects",
-            "Macro mean of project support-weighted version metrics.",
-        ),
+        ("Support-weighted Accuracy", "Accuracy_Weighted", "All projects"),
+        ("Support-weighted Precision", "Precision_Weighted", "All projects"),
+        ("Support-weighted Recall", "Recall_Weighted", "All projects"),
+        ("Support-weighted F1", "F1_Weighted", "All projects"),
     ]
 
+    model_results = [
+        ("Random Forest", rf_macro_metrics, True),
+        ("Dummy (most_frequent)", dummy_macro_metrics, dummy_macro_metrics is not None),
+    ]
     rows: list[dict[str, Any]] = []
-    for metric, value, contributing_groups, note in rf_metrics:
-        rows.append({
-            "Model": "Random Forest",
-            "Evaluation_Level": "Macro average across projects",
-            "Metric": metric,
-            "Value": value,
-            "Status": (
-                "Available" if pd.notna(value)
-                else "No informative groups"
-            ),
-            "Notes": f"{contributing_groups}. {note}",
-        })
 
-    rows.append({
-        "Model": "Dummy (most_frequent)",
-        "Evaluation_Level": "Macro average across projects",
-        "Metric": "All comparison metrics",
-        "Value": None,
-        "Status": "Pending",
-        "Notes": (
-            "Run the DummyClassifier baseline and generate its evaluation "
-            "before comparison."
-        ),
-    })
+    for model_name, macro_dataframe, available in model_results:
+        for display_metric, source_metric, contribution_note in metric_specs:
+            if not available:
+                value = None
+                status = "Pending"
+                notes = "Run the DummyClassifier baseline to populate this result."
+            else:
+                macro = macro_dataframe.iloc[0]
+                value = macro[source_metric]
+                status = "Available" if pd.notna(value) else "No informative groups"
+
+                if source_metric == "MCC":
+                    contribution_note = (
+                        f"{int(macro['MCC_Informative_Projects'])} informative projects; "
+                        + contribution_note
+                    )
+                elif source_metric == "Pooled_MCC":
+                    contribution_note = (
+                        f"{int(macro['Pooled_MCC_Informative_Projects'])} informative projects; "
+                        + contribution_note
+                    )
+                notes = (
+                    "Macro average; each project contributes equally. "
+                    + contribution_note
+                )
+
+            rows.append({
+                "Model": model_name,
+                "Evaluation_Level": "Macro average across projects",
+                "Metric": display_metric,
+                "Value": value,
+                "Status": status,
+                "Notes": notes,
+            })
+
     return pd.DataFrame(rows, columns=COMPARISON_COLUMNS)
 
 
