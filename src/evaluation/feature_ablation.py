@@ -37,14 +37,16 @@ def _validate_configurations(configurations: dict[str, list[str]]) -> None:
     if not configurations:
         raise ValueError("At least one ablation configuration is required.")
     for name, removed in configurations.items():
-        if not name or not isinstance(name, str):
+        if not isinstance(name, str) or not name.strip():
             raise ValueError("Ablation configuration names must be non-empty strings.")
         if not isinstance(removed, list):
             raise ValueError(f"Removed features for '{name}' must be a list.")
+        if any(not isinstance(feature, str) for feature in removed):
+            raise ValueError(f"Removed features for '{name}' must be strings.")
         unknown = sorted(set(removed) - set(FEATURES))
         if unknown:
             raise ValueError(f"Unknown features in '{name}': {unknown}")
-            if len(set(removed)) != len(removed):
+        if len(set(removed)) != len(removed):
             raise ValueError(f"Duplicate removed features in '{name}'.")
         if len(removed) == len(FEATURES):
             raise ValueError(f"Configuration '{name}' cannot remove every feature.")
@@ -56,6 +58,9 @@ def _build_ablation_predictions(
     metadata: pd.DataFrame,
     removed_features: list[str],
 ) -> tuple[pd.DataFrame, list[dict], float]:
+    unknown = sorted(set(removed_features) - set(X.columns))
+    if unknown:
+        raise ValueError(f"Unknown features in ablation input: {unknown}")
     selected_features = [feature for feature in X.columns if feature not in removed_features]
     if not selected_features:
         raise ValueError("Ablation configuration leaves no predictors.")
@@ -112,7 +117,6 @@ def run_feature_ablation(
     X, y, metadata = prepare_modeling_data(prepared)
 
     reference = pd.read_csv(reference_predictions_path, low_memory=False)
-    from src.evaluation.prediction_alignment import validate_prediction_alignment
     expected = metadata[["Project", "Version", "Class"]].copy()
     expected["Actual"] = y.to_numpy()
     validate_prediction_alignment(reference, expected)
