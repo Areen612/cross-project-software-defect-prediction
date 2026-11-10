@@ -64,6 +64,7 @@ def test_generate_workbook_creates_expected_file_and_sheets(run_directory):
 
     workbook = load_workbook(output_path, read_only=True)
     assert workbook.sheetnames == SHEET_NAMES
+    assert "Project Pooled" in workbook.sheetnames
     workbook.close()
 
 
@@ -98,6 +99,21 @@ def test_project_summary_contains_aggregated_results(run_directory):
     workbook.close()
 
 
+
+
+def test_project_pooled_sheet_reports_project_and_macro_rows(run_directory):
+    output_path = generate_evaluation_workbook(run_directory)
+    workbook = load_workbook(output_path, data_only=True, read_only=True)
+    rows = list(workbook["Project Pooled"].iter_rows(values_only=True))
+    headers = rows[0]
+    level_index = headers.index("Evaluation_Level")
+    model_index = headers.index("Model")
+    assert sum(row[level_index] == "Project pooled" for row in rows[1:]) == 2
+    assert sum(row[level_index] == "Project-pooled macro average" for row in rows[1:]) == 1
+    assert all(row[model_index] == "Random Forest" for row in rows[1:])
+    workbook.close()
+
+
 def test_model_comparison_marks_dummy_baseline_pending(run_directory):
     output_path = generate_evaluation_workbook(run_directory)
 
@@ -129,6 +145,7 @@ def test_run_notes_include_model_dataset_and_methodology(run_directory):
     assert notes["Imputation"] == "median"
     assert "equal project weighting" in notes["Macro averaging"]
     assert notes["Dummy baseline"].startswith("Not yet run")
+    assert "pooled within each project" in notes["Project Pooled aggregation"]
     workbook.close()
 
 
