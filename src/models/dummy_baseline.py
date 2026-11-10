@@ -5,12 +5,20 @@ from sklearn.dummy import DummyClassifier
 from src.preprocessing.imputation import impute_fold_data
 
 
-def train_dummy_fold(X, y, metadata, held_out_project, train_indices, test_indices):
-    """Train a most-frequent DummyClassifier using one LOPO training fold.
+def train_dummy_fold(
+    X,
+    y,
+    metadata,
+    held_out_project,
+    train_indices,
+    test_indices,
+):
+    """Train one most-frequent DummyClassifier LOPO fold.
 
-    The same fold-local median imputation and training/test split as the
-    Random Forest pipeline are retained for an apples-to-apples workflow.
-    The DummyClassifier itself does not use the predictor values.
+    Fold-local median imputation is run with the same training/test split as
+    Random Forest to retain preprocessing diagnostics and detect dropped
+    features. DummyClassifier intentionally ignores predictor values, so it
+    is fitted and queried with zero-column frames while using only y_train.
     """
     X_train = X.iloc[train_indices]
     X_test = X.iloc[test_indices]
