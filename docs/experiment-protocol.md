@@ -289,7 +289,7 @@ Use a consistent zero-division convention for precision, recall, and F1. The pla
 
 If a version group contains only one actual target class, flag its MCC as **not informative for two-class discrimination**. Do not interpret a numerical MCC from a degenerate group as evidence of meaningful two-class discrimination.
 
-## 11. Version-level evaluation
+## 11. Project-version evaluation (detailed level)
 
 For every held-out project:
 
@@ -300,101 +300,66 @@ For every held-out project:
 
 Do not infer or fabricate missing version values.
 
-The workbook's `Version Metrics` sheet must contain one row per held-out project-version group and model.
+The workbook's `Version Metrics` sheet contains one row per held-out project-version group and model.
 
-## 12. Project summaries
+## 12. Project summaries derived from version metrics
 
-For each project, calculate the **unweighted arithmetic mean across its version groups** for each requested metric.
+For each held-out project, calculate the **unweighted arithmetic mean across its version groups** for Accuracy, Precision, Recall, and F1. Each version group contributes equally, regardless of its observation count.
 
-This means each version group contributes equally to the project summary, regardless of its observation count.
+For MCC, average only informative project-version MCC values. Non-informative or undefined MCC values are excluded from the mean, not converted to ordinary zero-valued results.
 
-Label these values explicitly as `mean across versions`.
+This aggregation path is labelled **mean across versions**. It is not the same as calculating a metric once over all observations belonging to a project.
 
-Do not confuse this calculation with computing a metric once over all observations belonging to a project.
+The workbook's `Project Summary` sheet retains these project summaries, supplementary support-weighted version means, counts, and statuses.
 
-The workbook's `Project Summary` sheet must retain the project-level summary and the aggregation convention.
+## 13. Macro averages and supplementary project-pooled evaluation
 
-## 13. Overall model comparison
+Two project-level aggregation paths are reported separately.
 
-The primary overall comparison is the **macro average across the 39 held-out project summaries**.
+### 13.1 Primary project-version-derived macro average
 
-Each project receives equal weight, regardless of its size.
+The primary comparison macro-averages the project summaries from Section 12. Each held-out project contributes equally, regardless of its size or number of versions.
 
-MCC is the primary comparison metric. Report accuracy, precision, recall, and F1 alongside it.
+The comparison includes MCC, Accuracy, Precision, Recall, and F1. MCC averages only informative project summaries.
 
-Compare:
+### 13.2 Supplementary project-pooled metrics
 
-- Primary Random Forest
-- Majority-class Dummy baseline
-- Any separately labelled sensitivity or optional models, if performed
+As a separate supplementary perspective, combine all saved held-out predictions **within each project across its versions**, then calculate Accuracy, Precision, Recall, F1, MCC, and confusion-matrix counts once for that project.
 
-### 13.1 Supplementary pooled evaluation
+Next, macro-average those project-pooled metrics across projects, giving each project equal weight. For MCC, include only projects whose pooled actual and predicted labels contain both classes; exclude non-informative or undefined values rather than treating them as zero.
 
-In addition to the primary macro project-level comparison, calculate supplementary pooled metrics by combining all held-out predictions from the 39 outer folds.
+This project-pooled perspective answers a different question from the mean-across-versions calculation. Do not substitute one for the other.
 
-Calculate pooled metrics directly from the combined predictions and confusion-matrix counts.
-
-Do not calculate pooled F1 or pooled MCC by taking a weighted or unweighted average of project-level F1 or MCC values.
-
-Pooled accuracy is equivalent to the observation-weighted average of project accuracy, but pooled F1 and MCC generally are not equivalent to weighted averages of project-level scores.
-
-Clearly label pooled results as supplementary and distinguish them from macro project-level results.
+**Dataset-wide pooled metrics across all 39 held-out projects are out of scope** for the primary and supplementary reporting specified here. Do not include a single all-observations pooled row in the model comparison.
 
 ## 14. Output workbook
 
-The required Excel workbook must contain the following sheets:
+The required Excel workbook contains the following sheets:
 
 ### `Version Metrics`
 
-One row per held-out project-version group, including:
-
-- Model
-- Project
-- Version
-- Support
-- Buggy count
-- Non-buggy count
-- Accuracy
-- Precision
-- Recall
-- F1
-- MCC
-- TN
-- FP
-- FN
-- TP
+One row per held-out project-version group and model, including Project, Version, Support, buggy/non-buggy counts, Accuracy, Precision, Recall, F1, MCC, MCC status, and TN/FP/FN/TP.
 
 ### `Project Summary`
 
-One row per project and model, containing the unweighted arithmetic mean of version-level metrics. Clearly label the aggregation as `mean across versions`.
+One row per project and model. This sheet reports the **mean across versions** for each metric, support-weighted means as supplementary fields, and informative-MCC counts/status. It does not represent metrics calculated from pooled raw predictions.
+
+### `Project Pooled`
+
+One row per project and model, with predictions pooled across all versions within that project before metrics are calculated. Include Support, Accuracy, Precision, Recall, F1, MCC, MCC status, and TN/FP/FN/TP. Include a separate project-pooled macro-average row for each model, using equal project weighting.
 
 ### `Model Comparison`
 
-Include:
-
-- Macro project-level model comparison (primary)
-- Pooled observation-level model comparison (supplementary)
-- Clear identification of the primary MCC metric
-- Clear identification of the Random Forest and Dummy baseline
+Include the primary project-version-derived macro comparison, project summaries, and clear identification of Random Forest and the Dummy baseline. The separate `Project Pooled` sheet contains the supplementary pooled comparison. Do not add dataset-wide pooled metrics.
 
 ### `Run Notes`
 
-Record:
-
-- Dataset filename and checksum
-- Dataset row and project counts
-- Target definition
-- The 18 approved predictors
-- The six supervisor-directed exclusions
-- Missing-value parsing rules
-- Fold-local preprocessing decisions
-- LOPO evaluation design
-- Random Forest parameters
-- Baseline configuration
-- Metric definitions and zero-division convention
-- Software and package versions
-- Execution timestamp
-- Relevant limitations and deviations
+Record dataset and model metadata, target definition, predictors, exclusions, preprocessing, LOPO design, model parameters, metric definitions, zero-division convention, and limitations. Explicitly define:
+- Project-version metrics as the detailed level.
+- `Project Summary` as the unweighted mean across versions within a project.
+- `Project Pooled` as metrics calculated from raw predictions pooled within each project.
+- Both macro averages as equal-project averages, labelled by their aggregation path.
+- MCC contributor handling for non-informative and undefined groups.
 
 ## 15. Model artifacts
 
