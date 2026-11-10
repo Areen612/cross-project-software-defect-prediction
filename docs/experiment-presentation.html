@@ -1,0 +1,1176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f3f2ec">
+<title>Cross-Project Software Defect Prediction — Research Journey</title>
+<style>
+:root {
+  color-scheme: light;
+  --paper: #f3f2ec;
+  --surface: #ffffff;
+  --ink: #172b2a;
+  --muted: #5e706d;
+  --line: #d8dfd8;
+  --teal: #176a61;
+  --teal-dark: #0d4c47;
+  --teal-soft: #e4f0ec;
+  --amber: #a95d2a;
+  --amber-soft: #fff1e4;
+  --red: #a3433b;
+  --red-soft: #f9ece8;
+  --navy: #183c4a;
+  --shadow: 0 18px 50px rgba(24, 60, 74, .08);
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; }
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 88% 6%, rgba(23, 106, 97, .07), transparent 24rem),
+    var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; }
+button:focus-visible, a:focus-visible, summary:focus-visible {
+  outline: 3px solid #2a877b;
+  outline-offset: 3px;
+}
+.app {
+  width: min(100%, 1680px);
+  height: 100svh;
+  margin: 0 auto;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.chrome {
+  position: relative;
+  z-index: 5;
+  padding: 14px clamp(16px, 4vw, 64px) 0;
+  background: rgba(243, 242, 236, .94);
+  backdrop-filter: blur(14px);
+}
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 43px;
+  margin-bottom: 12px;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 12px;
+  background: var(--teal-dark);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -.04em;
+  text-decoration: none;
+}
+.brand-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.brand-title strong { font-size: 13px; letter-spacing: .01em; }
+.brand-title span, .brand-meta {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.brand-meta { margin-left: auto; }
+.section-nav {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #c4d2cb transparent;
+  padding: 2px 0 12px;
+  overscroll-behavior-x: contain;
+}
+.nav-item {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  transition: color .22s ease, background .22s ease, border-color .22s ease, transform .22s ease;
+}
+.nav-item .nav-number {
+  color: #82928e;
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+.nav-item:hover { color: var(--ink); background: rgba(255,255,255,.75); border-color: var(--line); }
+.nav-item[aria-current="step"] {
+  color: #fff;
+  background: var(--teal-dark);
+  border-color: var(--teal-dark);
+  box-shadow: 0 5px 16px rgba(13, 76, 71, .16);
+}
+.nav-item[aria-current="step"] .nav-number { color: #b8d9d2; }
+.progress-track { height: 2px; background: #dfe4df; margin: 0 calc(clamp(16px, 4vw, 64px) * -1); }
+.progress-fill { display: block; width: 10%; height: 100%; background: var(--teal); transition: width .32s ease; }
+.deck { position: relative; min-height: 0; }
+.slide {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: clamp(20px, 3.1vw, 48px) clamp(18px, 5vw, 82px) 34px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity .32s ease, transform .32s ease, visibility 0s linear .32s;
+  scrollbar-width: thin;
+  scrollbar-color: #c2cec8 transparent;
+}
+.slide.is-active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+.slide-inner { width: min(100%, 1420px); margin: 0 auto; }
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 12px;
+  color: var(--teal);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.eyebrow::before { content: ""; width: 19px; height: 2px; background: currentColor; }
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.section-heading h1 {
+  margin: 0;
+  max-width: 900px;
+  font-family: var(--font-serif);
+  font-size: clamp(32px, 4.3vw, 58px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -.045em;
+  text-wrap: balance;
+}
+.section-heading p {
+  max-width: 420px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+h2, h3, p { margin-top: 0; }
+h2 { font-size: 18px; line-height: 1.2; }
+h3 { font-size: 14px; line-height: 1.3; }
+p { line-height: 1.6; }
+code, .mono { font-family: var(--font-mono); }
+code {
+  padding: .13em .36em;
+  border-radius: 5px;
+  background: #eef2ee;
+  color: #175d55;
+  font-size: .9em;
+  overflow-wrap: anywhere;
+}
+.kicker {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: var(--muted);
+  background: rgba(255,255,255,.78);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.tag.teal { color: var(--teal-dark); border-color: #c6ded7; background: var(--teal-soft); }
+.tag.amber { color: #85471e; border-color: #f1d0b5; background: var(--amber-soft); }
+.tag.red { color: #873932; border-color: #ebc9c4; background: var(--red-soft); }
+.source-line {
+  margin-top: 14px;
+  color: #71817c;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.source-line strong { color: #52635e; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.stat-card { padding: 17px 18px; min-height: 103px; }
+.stat-value {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--teal-dark);
+  font-family: var(--font-serif);
+  font-size: clamp(27px, 3vw, 40px);
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+.stat-label { display: block; color: var(--muted); font-size: 11px; font-weight: 700; }
+.stat-note { display: block; margin-top: 5px; color: #7a8985; font-size: 9px; }
+.grid-two { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.grid-three { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+.grid-four { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.soft-panel { padding: 18px 20px; border-radius: 16px; background: #e8eeea; }
+.dark-panel {
+  padding: 20px 22px;
+  border-radius: 16px;
+  background: var(--teal-dark);
+  color: #f7fbf8;
+}
+.dark-panel p { color: #c8ddd7; }
+.callout {
+  border-left: 3px solid var(--amber);
+  padding: 12px 15px;
+  border-radius: 0 10px 10px 0;
+  background: var(--amber-soft);
+  color: #68432b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.hero-layout { display: grid; grid-template-columns: 1.15fr .85fr; gap: clamp(20px, 5vw, 78px); align-items: center; }
+.hero-title {
+  max-width: 830px;
+  margin: 0 0 18px;
+  font-family: var(--font-serif);
+  font-size: clamp(42px, 6.1vw, 86px);
+  font-weight: 500;
+  line-height: .98;
+  letter-spacing: -.055em;
+  text-wrap: balance;
+}
+.hero-title em { color: var(--teal); font-style: italic; }
+.hero-project { margin: 0 0 10px; color: var(--muted); font-size: 15px; font-weight: 700; }
+.hero-copy { max-width: 670px; margin: 0 0 22px; color: #53645f; font-size: 15px; line-height: 1.7; }
+.hero-stats { display: flex; flex-wrap: wrap; gap: 8px; }
+.hero-stat { min-width: 112px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.73); }
+.hero-stat b { display: block; color: var(--teal-dark); font-family: var(--font-serif); font-size: 22px; line-height: 1; }
+.hero-stat span { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.lopo-card { position: relative; padding: 24px; overflow: hidden; background: var(--navy); color: #fff; }
+.lopo-card::after {
+  content: "";
+  position: absolute;
+  width: 230px;
+  height: 230px;
+  right: -100px;
+  top: -115px;
+  border: 1px solid rgba(203,230,221,.18);
+  border-radius: 50%;
+  box-shadow: 0 0 0 22px rgba(203,230,221,.04), 0 0 0 46px rgba(203,230,221,.035);
+}
+.lopo-card h2 { position: relative; z-index: 1; margin: 0 0 17px; font-family: var(--font-serif); font-size: 25px; font-weight: 500; }
+.lopo-flow { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 38px 1fr; gap: 10px; align-items: center; }
+.lopo-unit { min-height: 104px; display: flex; flex-direction: column; justify-content: center; padding: 14px; border: 1px solid rgba(255,255,255,.2); border-radius: 12px; background: rgba(255,255,255,.08); }
+.lopo-unit strong { color: #b6ddd2; font-family: var(--font-serif); font-size: 37px; line-height: 1; }
+.lopo-unit b { margin-top: 8px; font-size: 12px; }
+.lopo-unit small { margin-top: 3px; color: #c4d5d2; font-size: 10px; }
+.lopo-arrow { color: #a7d1c8; font-size: 24px; text-align: center; }
+.lopo-repeat { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.2); color: #d1e3df; font-size: 10px; }
+.lopo-repeat strong { color: #fff; font-family: var(--font-mono); font-size: 13px; }
+.phase-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 30px; }
+.phase-pill { padding: 8px 10px; border-radius: 8px; color: #49605c; background: rgba(255,255,255,.65); font-size: 10px; font-weight: 700; }
+.phase-pill b { margin-right: 5px; color: var(--teal); font-family: var(--font-mono); font-size: 9px; }
+.data-layout { display: grid; grid-template-columns: 1.05fr .95fr; gap: 14px; margin-top: 14px; }
+.target-card, .inventory-card { padding: 19px 20px; }
+.target-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.target-count { padding: 12px; border-radius: 11px; background: #f1f5f1; }
+.target-count strong { display: block; color: var(--teal-dark); font-family: var(--font-serif); font-size: 23px; }
+.target-count span { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+.predictor-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.predictor-list code { font-size: 9px; }
+.field-roles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin-top: 12px; }
+.field-role { min-height: 76px; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.7); }
+.field-role b { display: block; margin-bottom: 5px; font-size: 10px; }
+.field-role span { display: block; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.decision-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.decision-card { padding: 18px 19px; }
+.decision-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.decision-index { color: #7f9992; font-family: var(--font-mono); font-size: 10px; font-weight: 700; }
+.decision-card h2 { margin: 7px 0 8px; font-family: var(--font-serif); font-size: 22px; font-weight: 500; letter-spacing: -.02em; }
+.decision-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.decision-card details { margin-top: 13px; padding-top: 10px; border-top: 1px solid #e9eeea; }
+.decision-card summary { color: var(--teal); cursor: pointer; font-size: 10px; font-weight: 800; }
+.decision-card details p { padding-top: 8px; }
+.hyper-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.hyper-grid code { font-size: 9px; }
+.flow-scroll { overflow-x: auto; padding: 2px 1px 10px; }
+.pipeline-grid { display: grid; grid-template-columns: repeat(8, minmax(108px,1fr)); gap: 9px; min-width: 980px; }
+.flow-node {
+  position: relative;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: left;
+  padding: 12px 12px 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(24,60,74,.035);
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.flow-node:not(:last-child)::after { content: "›"; position: absolute; top: 39px; right: -9px; z-index: 2; color: var(--teal); font-size: 21px; font-weight: 800; }
+.flow-node:hover { transform: translateY(-2px); border-color: #8ebbb0; }
+.flow-node[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-soft); box-shadow: 0 8px 22px rgba(23,106,97,.13); }
+.flow-node .step-no { color: #80918b; font-family: var(--font-mono); font-size: 9px; }
+.flow-node b { margin-top: 7px; font-size: 11px; line-height: 1.3; }
+.flow-node small { margin-top: 5px; color: var(--muted); font-size: 8px; line-height: 1.35; }
+.pipeline-detail { display: grid; grid-template-columns: 150px 1fr 1fr; gap: 16px; align-items: start; margin-top: 9px; padding: 16px 18px; border-radius: 13px; background: var(--teal-dark); color: #fff; }
+.pipeline-detail .detail-label { color: #afd3ca; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.pipeline-detail h2 { margin: 5px 0 0; font-family: var(--font-serif); font-size: 18px; font-weight: 500; }
+.pipeline-detail p { margin: 0; color: #d6e7e2; font-size: 10px; line-height: 1.6; }
+.pipeline-detail .module-name { color: #b6ddd2; font-family: var(--font-mono); font-size: 9px; }
+.challenge-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.challenge-card { padding: 16px 17px; }
+.challenge-card h2 { margin: 9px 0 7px; font-family: var(--font-serif); font-size: 20px; font-weight: 500; }
+.challenge-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.challenge-card .response { margin-top: 9px; padding-top: 9px; border-top: 1px solid #e8eeea; }
+.challenge-card .response b { display: block; margin-bottom: 4px; color: var(--teal); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.test-strip { margin-top: 14px; padding: 13px 16px; display: flex; align-items: center; gap: 13px; background: #e8eeea; border-radius: 13px; }
+.test-strip strong { color: var(--teal-dark); font-family: var(--font-serif); font-size: 20px; font-weight: 500; white-space: nowrap; }
+.test-strip p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 9px; }
+.metric-card { padding: 14px 14px; min-height: 109px; }
+.metric-card .metric-name { color: var(--teal-dark); font-size: 12px; font-weight: 800; }
+.metric-card p { margin: 7px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.mcc-card { border-color: #b7d3cb; background: var(--teal-soft); }
+.mcc-scale { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; }
+.mcc-scale span { color: #516762; font-family: var(--font-mono); font-size: 9px; }
+.hierarchy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 13px 0; }
+.hierarchy-card { position: relative; padding: 14px 15px; border-radius: 12px; background: #edf1ed; }
+.hierarchy-card:not(:last-child)::after { content: "→"; position: absolute; top: 19px; right: -10px; z-index: 2; color: #7c938b; font-size: 15px; font-weight: 800; }
+.hierarchy-card .level { color: var(--teal); font-family: var(--font-mono); font-size: 9px; }
+.hierarchy-card b { display: block; margin-top: 6px; font-size: 11px; }
+.hierarchy-card small { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.aggregation-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.aggregation-card { padding: 13px 15px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.aggregation-card b { display: block; color: var(--teal-dark); font-size: 11px; }
+.aggregation-card p { margin: 6px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.result-layout { display: grid; grid-template-columns: 1.03fr .97fr; gap: 13px; align-items: start; }
+.result-card { padding: 17px 18px; }
+.result-card h2 { margin: 0 0 11px; font-family: var(--font-serif); font-size: 22px; font-weight: 500; }
+.table-wrap { width: 100%; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 8px; border-bottom: 1px solid #e7ece8; text-align: left; font-size: 10px; white-space: nowrap; }
+th { color: #61716c; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+td:first-child { color: var(--ink); font-weight: 700; }
+td.num { font-family: var(--font-mono); }
+th.rf { color: var(--teal); } th.dummy { color: #8a5a42; }
+.result-summary { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; margin-top: 11px; }
+.result-summary div { padding: 10px 11px; border-radius: 10px; background: #f1f5f1; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.result-summary strong { color: var(--teal-dark); font-size: 15px; }
+.ablation-table td:nth-child(2), .ablation-table td:nth-child(3), .ablation-table td:nth-child(4) { font-family: var(--font-mono); }
+.aggregation-note { margin-top: 12px; padding: 12px 14px; border: 1px solid #ecd8c4; border-radius: 12px; background: #fff7ef; color: #684b36; font-size: 10px; line-height: 1.55; }
+.artifact-note { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 11px 13px; border-radius: 12px; background: var(--red-soft); color: #713b36; font-size: 9px; line-height: 1.5; }
+.artifact-note b { flex: 0 0 auto; }
+.evidence-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.evidence-card { padding: 17px 18px; }
+.evidence-card h2 { margin: 9px 0 8px; font-family: var(--font-serif); font-size: 21px; font-weight: 500; }
+.evidence-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.58; }
+.association-table th, .association-table td { padding: 6px 8px; }
+.integrity-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin-top: 12px; }
+.integrity-stat { padding: 11px 12px; border-radius: 11px; background: #edf1ed; }
+.integrity-stat strong { display: block; color: var(--teal-dark); font-family: var(--font-serif); font-size: 22px; line-height: 1; }
+.integrity-stat span { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.35; }
+.audit-note { margin-top: 12px; padding: 14px 16px; border-radius: 13px; background: #fff; border: 1px solid var(--line); color: #596b65; font-size: 10px; line-height: 1.55; }
+.audit-note strong { color: var(--red); }
+.roadmap { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; counter-reset: path; }
+.roadmap-card { counter-increment: path; padding: 22px 21px; }
+.roadmap-card::before { content: "0" counter(path); display: block; margin-bottom: 15px; color: #81a79e; font-family: var(--font-mono); font-size: 12px; }
+.roadmap-card h2 { margin: 0 0 10px; font-family: var(--font-serif); font-size: 24px; font-weight: 500; }
+.roadmap-card p { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.roadmap-card ul, .takeaway-list { margin: 10px 0 0; padding-left: 17px; color: #50635e; font-size: 10px; line-height: 1.65; }
+.research-question { margin-top: 14px; padding: 14px 16px; border-radius: 12px; background: var(--teal-soft); color: var(--teal-dark); font-size: 11px; font-weight: 700; line-height: 1.5; }
+.takeaway-layout { display: grid; grid-template-columns: .9fr 1.1fr; gap: 22px; align-items: stretch; }
+.takeaway-hero { display: flex; flex-direction: column; justify-content: space-between; min-height: 290px; padding: 25px; border-radius: 18px; background: var(--teal-dark); color: #fff; }
+.takeaway-hero .big-number { color: #a9d2c8; font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.takeaway-hero h2 { margin: 22px 0 15px; font-family: var(--font-serif); font-size: clamp(30px, 4vw, 53px); font-weight: 500; line-height: 1.04; letter-spacing: -.04em; }
+.takeaway-hero p { margin: 0; color: #c7ded8; font-size: 12px; line-height: 1.6; }
+.takeaway-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; counter-reset: take; }
+.takeaway-list li { counter-increment: take; display: grid; grid-template-columns: 32px 1fr; gap: 11px; align-items: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.takeaway-list li::before { content: "0" counter(take); color: var(--teal); font-family: var(--font-mono); font-size: 10px; }
+.takeaway-list b { display: block; margin-bottom: 3px; font-size: 11px; }
+.takeaway-list span { display: block; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.figure-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; margin-top: 14px; }
+.figure-slot {
+  position: relative;
+  min-height: 98px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 12px 13px;
+  border: 1px dashed #9db5ad;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(23,106,97,.035) 25%, transparent 25%, transparent 50%, rgba(23,106,97,.035) 50%, rgba(23,106,97,.035) 75%, transparent 75%) 0 0 / 18px 18px,
+    rgba(255,255,255,.65);
+}
+.figure-slot::after { content: ""; position: absolute; right: 12px; top: 12px; width: 24px; height: 24px; border: 1px solid #acc1b9; border-radius: 50%; opacity: .75; }
+.figure-slot .slot-label { position: relative; z-index: 1; color: var(--teal-dark); font-size: 10px; font-weight: 800; }
+.figure-slot .slot-desc { position: relative; z-index: 1; max-width: 88%; color: #75857f; font-size: 8px; line-height: 1.45; }
+.figure-slot .slot-status { position: relative; z-index: 1; align-self: flex-start; margin-top: 7px; color: #71847d; font-family: var(--font-mono); font-size: 8px; letter-spacing: .03em; }
+.figure-slot.compact { min-height: 78px; }
+.figure-slot.compact .slot-desc { font-size: 8px; }
+.controls {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 62px;
+  padding: 9px clamp(16px, 4vw, 64px) 14px;
+  border-top: 1px solid rgba(202, 214, 206, .8);
+  background: rgba(243,242,236,.96);
+}
+.control-hint { color: #74827d; font-size: 9px; }
+.control-hint kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 19px;
+  margin: 0 2px;
+  border: 1px solid #c8d2cb;
+  border-radius: 5px;
+  background: #fff;
+  color: #4c615b;
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+.section-counter { margin-left: auto; color: #657772; font-family: var(--font-mono); font-size: 10px; white-space: nowrap; }
+.section-counter strong { color: var(--teal-dark); font-size: 13px; }
+.control-buttons { display: flex; gap: 7px; }
+.control-button {
+  width: 39px;
+  height: 36px;
+  border: 1px solid #c9d4cd;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+  transition: background .2s ease, border-color .2s ease, transform .2s ease;
+}
+.control-button:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--teal); background: var(--teal-soft); }
+.control-button:disabled { cursor: not-allowed; color: #a5b0ab; background: #eef0ec; }
+@media (max-width: 1050px) {
+  .brand-meta { display: none; }
+  .section-nav { gap: 2px; }
+  .nav-item { padding: 7px 8px; font-size: 10px; }
+  .hero-layout { grid-template-columns: 1fr 1fr; gap: 24px; }
+  .challenge-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .metric-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 740px) {
+  .chrome { padding-top: 10px; }
+  .brand-row { margin-bottom: 7px; }
+  .section-nav { padding-bottom: 9px; }
+  .nav-item { min-height: 32px; }
+  .slide { padding-top: 22px; }
+  .section-heading { display: block; margin-bottom: 17px; }
+  .section-heading p { margin-top: 10px; }
+  .hero-layout, .data-layout, .result-layout, .takeaway-layout { grid-template-columns: 1fr; }
+  .hero-title { font-size: clamp(42px, 11vw, 68px); }
+  .lopo-card { max-width: 560px; }
+  .stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .field-roles { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .grid-three, .evidence-grid, .roadmap { grid-template-columns: 1fr; }
+  .decision-grid { grid-template-columns: 1fr; }
+  .challenge-grid { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .hierarchy { grid-template-columns: 1fr; }
+  .hierarchy-card:not(:last-child)::after { content: "↓"; top: auto; right: 50%; bottom: -15px; }
+  .aggregation-grid { grid-template-columns: 1fr; }
+  .integrity-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .figure-grid, .grid-four { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .pipeline-detail { grid-template-columns: 1fr; gap: 8px; }
+  .pipeline-grid { min-width: 0; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .flow-node:not(:last-child)::after { content: ""; }
+  .test-strip { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .controls { min-height: 58px; gap: 8px; }
+  .control-hint { display: none; }
+}
+@media (max-width: 430px) {
+  .brand-title strong { font-size: 11px; }
+  .brand-title span { font-size: 8px; letter-spacing: .1em; }
+  .nav-item { gap: 5px; padding: 6px 7px; font-size: 9px; }
+  .nav-item .nav-number { font-size: 8px; }
+  .slide { padding-left: 14px; padding-right: 14px; }
+  .hero-title { font-size: 41px; }
+  .lopo-card { padding: 18px; }
+  .lopo-flow { grid-template-columns: 1fr 22px 1fr; gap: 5px; }
+  .lopo-unit { padding: 10px; }
+  .lopo-unit strong { font-size: 31px; }
+  .stat-card { padding: 13px; }
+  .stat-value { font-size: 27px; }
+  .figure-grid, .grid-four { grid-template-columns: 1fr 1fr; }
+}
+@media (max-height: 680px) and (min-width: 741px) {
+  .slide { padding-top: 20px; padding-bottom: 20px; }
+  .section-heading { margin-bottom: 16px; }
+  .stat-card { min-height: 88px; padding: 13px 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="chrome">
+    <div class="brand-row">
+      <a class="brand-mark" href="#overview" aria-label="Go to overview">CP</a>
+      <div class="brand-title">
+        <strong>Cross-Project Software Defect Prediction</strong>
+        <span>Research journey · evaluation brief</span>
+      </div>
+      <div class="brand-meta">Research notebook&nbsp; / &nbsp;01</div>
+    </div>
+    <nav class="section-nav" aria-label="Presentation sections">
+      <button class="nav-item" type="button" data-target="overview" aria-controls="overview" aria-current="step"><span class="nav-number">01</span>Overview</button>
+      <button class="nav-item" type="button" data-target="dataset" aria-controls="dataset"><span class="nav-number">02</span>Dataset</button>
+      <button class="nav-item" type="button" data-target="decisions" aria-controls="decisions"><span class="nav-number">03</span>Design</button>
+      <button class="nav-item" type="button" data-target="pipeline" aria-controls="pipeline"><span class="nav-number">04</span>Pipeline</button>
+      <button class="nav-item" type="button" data-target="challenges" aria-controls="challenges"><span class="nav-number">05</span>Challenges</button>
+      <button class="nav-item" type="button" data-target="evaluation" aria-controls="evaluation"><span class="nav-number">06</span>Evaluation</button>
+      <button class="nav-item" type="button" data-target="results" aria-controls="results"><span class="nav-number">07</span>Results</button>
+      <button class="nav-item" type="button" data-target="investigation" aria-controls="investigation"><span class="nav-number">08</span>Investigation</button>
+      <button class="nav-item" type="button" data-target="future" aria-controls="future"><span class="nav-number">09</span>Next steps</button>
+      <button class="nav-item" type="button" data-target="takeaways" aria-controls="takeaways"><span class="nav-number">10</span>Takeaways</button>
+    </nav>
+    <div class="progress-track" aria-hidden="true"><span class="progress-fill" id="progress-fill"></span></div>
+  </header>
+
+  <main class="deck" id="deck" aria-label="Research presentation">
+    <section class="slide is-active" id="overview" aria-label="1 of 10: Overview" aria-hidden="false" tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">The research journey · cross-project prediction</p>
+        <div class="hero-layout">
+          <div>
+            <p class="kicker">A project-level generalization question</p>
+            <h1 class="hero-title">Can defect knowledge travel to a <em>project it has never seen?</em></h1>
+            <p class="hero-project">Cross-Project Software Defect Prediction</p>
+            <p class="hero-copy">Train on software classes from other projects, then test on one fully held-out project. The experiment follows that transfer question through dataset decisions, LOPO implementation, model comparison, and a closer look at unexpectedly high scores.</p>
+            <div class="hero-stats" aria-label="Experiment scope">
+              <div class="hero-stat"><b>39</b><span>projects</span></div>
+              <div class="hero-stat"><b>110,917</b><span>class records</span></div>
+              <div class="hero-stat"><b>39-fold</b><span>LOPO design</span></div>
+            </div>
+          </div>
+          <aside class="card lopo-card" aria-label="Leave-one-project-out illustration">
+            <h2>One project stays unseen</h2>
+            <div class="lopo-flow">
+              <div class="lopo-unit"><strong>38</strong><b>projects train</b><small>the outer-training set</small></div>
+              <div class="lopo-arrow" aria-hidden="true">→</div>
+              <div class="lopo-unit"><strong>01</strong><b>project tests</b><small>held out from fitting</small></div>
+            </div>
+            <div class="lopo-repeat"><span>Rotate the held-out project</span><strong>× 39</strong></div>
+          </aside>
+        </div>
+        <div class="phase-row" aria-label="Research phases">
+          <span class="phase-pill"><b>01</b>Dataset</span><span class="phase-pill"><b>02</b>Design</span>
+          <span class="phase-pill"><b>03</b>Pipeline</span><span class="phase-pill"><b>04</b>Evaluation</span>
+          <span class="phase-pill"><b>05</b>Baseline</span><span class="phase-pill"><b>06</b>Robustness</span>
+          <span class="phase-pill"><b>07</b>Ablation</span><span class="phase-pill"><b>08</b>Investigation</span>
+        </div>
+        <div class="figure-grid" aria-label="Reserved experimental design visualization">
+          <div class="figure-slot compact"><span class="slot-label">LOPO experimental design</span><span class="slot-desc">38 training projects, one held-out project, repeated across 39 folds.</span><span class="slot-status">Reserved for final figure</span></div>
+        </div>
+        <p class="source-line"><strong>Study boundary:</strong> LOPO tests transfer to an unseen project in this dataset; it does not by itself test future-version prediction for a known project. <span class="mono">docs/dataset-and-methodology.md · docs/experiment-protocol.md</span></p>
+      </div>
+    </section>
+
+    <section class="slide" id="dataset" aria-label="2 of 10: Dataset" aria-hidden="true" inert tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">02 · Understand the data before the model</p>
+        <div class="section-heading">
+          <h1>One dataset, very uneven projects</h1>
+          <p>Rows are retained as separate class records. Their exact source meaning and the dataset’s provenance have not yet been established.</p>
+        </div>
+        <div class="stat-grid">
+          <div class="card stat-card"><span class="stat-value">110,917</span><span class="stat-label">observations</span><span class="stat-note">CSV rows</span></div>
+          <div class="card stat-card"><span class="stat-value">39</span><span class="stat-label">projects</span><span class="stat-note">outer LOPO groups</span></div>
+          <div class="card stat-card"><span class="stat-value">75</span><span class="stat-label">distinct version labels</span><span class="stat-note">non-missing values</span></div>
+          <div class="card stat-card"><span class="stat-value">29</span><span class="stat-label">original columns</span><span class="stat-note">including blank-header index-like field</span></div>
+        </div>
+        <div class="data-layout">
+          <article class="card target-card">
+            <p class="kicker">Target · built from <code>bugs</code></p>
+            <h2><code>buggy = bugs &gt; 0</code></h2>
+            <div class="target-counts">
+              <div class="target-count"><strong>102,167 · 92.11%</strong><span>Buggy observations</span></div>
+              <div class="target-count"><strong>8,750 · 7.89%</strong><span>Non-buggy observations</span></div>
+            </div>
+            <p class="source-line">A majority-only classifier can score well on accuracy while identifying no non-buggy classes. Read the target distribution alongside class-sensitive metrics.</p>
+          </article>
+          <article class="card inventory-card">
+            <p class="kicker">Final configured predictors · 18</p>
+            <div class="predictor-list" aria-label="Approved configured predictors">
+              <code>noc</code><code>cbo</code><code>rfc</code><code>lcom</code><code>ca</code><code>ce</code><code>npm</code><code>lcom3</code><code>loc</code><code>dam</code><code>moa</code><code>mfa</code><code>cam</code><code>ic</code><code>cbm</code><code>amc</code><code>nr</code><code>ndc</code>
+            </div>
+            <p class="source-line"><strong>Not predictors:</strong> <code>Project</code>, <code>Version</code>, <code>Class</code>, <code>bugs</code>, the blank-header column, and six supervisor-excluded metrics: <code>nml</code>, <code>isOld</code>, <code>ndpv</code>, <code>ner</code>, <code>max(cc)</code>, <code>avg(cc)</code>.</p>
+          </article>
+        </div>
+        <div class="field-roles" aria-label="Dataset field roles">
+          <div class="field-role"><b>Project / Version / Class</b><span>Grouping, reporting and traceability metadata.</span></div>
+          <div class="field-role"><b>18 metrics</b><span>Explicit predictor set from <code>src/config.py</code>.</span></div>
+          <div class="field-role"><b><code>bugs</code></b><span>Target source only; excluded from model input.</span></div>
+          <div class="field-role"><b>Excluded range</b><span>Supervisor-directed decision; not a claim of no predictive value.</span></div>
+        </div>
+        <div class="callout" style="margin-top:13px"><strong>Missingness:</strong> 1,589 values are missing across selected predictors: 1,162 in <code>lcom3</code>, 303 in <code>rfc</code>, 62 in <code>amc</code>, and 62 in <code>nr</code>. Separately, <code>avg(cc)</code> is 94.56% missing and excluded by instruction.</div>
+        <p class="source-line"><strong>Project-size range:</strong> 10 to 23,058 records (median 245). The inspected dataset contains 75 non-missing version labels, while the workbook evaluates 93 project–version groups including missing-version groups. <span class="mono">sources/ds.csv · src/config.py · docs/results_investigation_report.md</span></p>
+        <div class="figure-grid" aria-label="Reserved dataset visualization areas">
+          <div class="figure-slot"><span class="slot-label">Target distribution</span><span class="slot-desc">Buggy vs non-buggy class balance.</span><span class="slot-status">Reserved for final figure</span></div>
+          <div class="figure-slot"><span class="slot-label">Project sizes</span><span class="slot-desc">How support varies across 39 projects.</span><span class="slot-status">Reserved for final figure</span></div>
+          <div class="figure-slot"><span class="slot-label">Missing values</span><span class="slot-desc">Where selected metric values are absent.</span><span class="slot-status">Reserved for final figure</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="decisions" aria-label="3 of 10: Design decisions" aria-hidden="true" inert tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">03 · Decisions that shape the experiment</p>
+        <div class="section-heading">
+          <h1>Each choice protects a different part of the question</h1>
+          <p>Primary design choices define the evaluation. Robustness and feature ablation are later sensitivity views, not substitutes for the primary protocol.</p>
+        </div>
+        <div class="decision-grid">
+          <article class="card decision-card">
+            <div class="decision-top"><span class="decision-index">DECISION 01</span><span class="tag teal">Outer evaluation</span></div>
+            <h2>Hold out a whole project</h2>
+            <p>LOPO keeps every row from one project on the test side, then repeats until each of 39 projects has been held out once.</p>
+            <details open><summary>Reason → consequence</summary><p>Random row splits can place classes from the same project in train and test. LOPO makes the held-out project unseen during model fitting and preprocessing.</p></details>
+          </article>
+          <article class="card decision-card">
+            <div class="decision-top"><span class="decision-index">DECISION 02</span><span class="tag teal">Primary model</span></div>
+            <h2>Use a fixed Random Forest</h2>
+            <p>Tree ensembles can represent nonlinear boundaries and feature interactions without standardizing metrics.</p>
+            <div class="hyper-grid"><code>200 trees</code><code>max_features=sqrt</code><code>class_weight=None</code><code>seed=42</code><code>n_jobs=-1</code></div>
+            <details><summary>Reason → consequence</summary><p>The configuration is a reproducible baseline, not a tuned or optimal model. A <code>DummyClassifier(strategy="most_frequent")</code> provides the majority-class reference.</p></details>
+          </article>
+          <article class="card decision-card">
+            <div class="decision-top"><span class="decision-index">DECISION 03</span><span class="tag teal">Preprocessing</span></div>
+            <h2>Fit imputation inside each fold</h2>
+            <p>Median values are learned from the 38 training projects and reused for the held-out project.</p>
+            <details open><summary>Reason → consequence</summary><p>Using held-out values to fit preprocessing would let test-project information affect the model pipeline. A predictor entirely missing in a training fold is dropped for that fold.</p></details>
+          </article>
+          <article class="card decision-card">
+            <div class="decision-top"><span class="decision-index">DECISION 04</span><span class="tag amber">Sensitivity views</span></div>
+            <h2>Keep the baseline and follow-ups distinct</h2>
+            <p>Dummy, robustness, and feature-ablation runs answer different questions around the primary Random Forest.</p>
+            <details><summary>Reason → consequence</summary><p>The Dummy baseline checks value beyond the majority label. Robustness summarizes project and version performance; ablation probes sensitivity to selected predictors. Neither establishes causality.</p></details>
+          </article>
+        </div>
+        <div class="grid-two" style="margin-top:13px">
+          <div class="soft-panel"><strong class="kicker">Why no scaling?</strong><p style="margin:7px 0 0;color:var(--muted);font-size:10px">The configured Random Forest uses tree splits and the implemented pipeline has no scaler. Scaling is unnecessary for this selected model.</p></div>
+          <div class="soft-panel"><strong class="kicker">Method boundary</strong><p style="margin:7px 0 0;color:var(--muted);font-size:10px">LOPO evaluates unseen-project transfer in this dataset; it does not demonstrate future-version prediction or external-dataset generalization.</p></div>
+        </div>
+        <p class="source-line"><span class="mono">src/config.py · src/evaluation/lopo.py · src/preprocessing/imputation.py · src/models/fold_trainer.py · docs/experiment-protocol.md</span></p>
+      </div>
+    </section>
+
+    <section class="slide" id="pipeline" aria-label="4 of 10: Implementation pipeline" aria-hidden="true" inert tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">04 · From CSV to evaluation workbook</p>
+        <div class="section-heading">
+          <h1>Follow one observation through the code</h1>
+          <p>Select a stage to see its responsibility, the input it receives, and what it passes forward.</p>
+        </div>
+        <div class="flow-scroll">
+          <div class="pipeline-grid" role="group" aria-label="Interactive implementation pipeline">
+            <button class="flow-node" type="button" data-pipeline="raw" aria-pressed="true"><span class="step-no">01 · INPUT</span><b>Raw CSV</b><small>29 columns · class rows</small></button>
+            <button class="flow-node" type="button" data-pipeline="load" aria-pressed="false"><span class="step-no">02 · DATA</span><b>Load & parse</b><small>blank and dash → missing</small></button>
+            <button class="flow-node" type="button" data-pipeline="target" aria-pressed="false"><span class="step-no">03 · DATA</span><b>Target & features</b><small>buggy + explicit 18</small></button>
+            <button class="flow-node" type="button" data-pipeline="split" aria-pressed="false"><span class="step-no">04 · EVALUATION</span><b>LOPO split</b><small>group by Project</small></button>
+            <button class="flow-node" type="button" data-pipeline="impute" aria-pressed="false"><span class="step-no">05 · PREP</span><b>Fold imputation</b><small>training medians only</small></button>
+            <button class="flow-node" type="button" data-pipeline="train" aria-pressed="false"><span class="step-no">06 · MODEL</span><b>Fit & predict</b><small>RF on held-out fold</small></button>
+            <button class="flow-node" type="button" data-pipeline="metrics" aria-pressed="false"><span class="step-no">07 · EVALUATION</span><b>Score & aggregate</b><small>version → project → macro</small></button>
+            <button class="flow-node" type="button" data-pipeline="report" aria-pressed="false"><span class="step-no">08 · REPORTING</span><b>Save artifacts</b><small>predictions, models, workbook</small></button>
+          </div>
+        </div>
+        <div class="pipeline-detail" id="pipeline-detail" aria-live="polite">
+          <div><span class="detail-label">Selected stage</span><h2 id="pipeline-title">Raw CSV</h2></div>
+          <p id="pipeline-purpose">The experiment starts from the supplied class-metric file. The raw input is kept separate from model preparation.</p>
+          <div><p id="pipeline-transfer">Output → source rows carrying project, version, class, metrics, and bug counts.</p><p class="module-name" id="pipeline-module">resources/ds.csv · source mirror: sources/ds.csv</p></div>
+        </div>
+        <div class="grid-two" style="margin-top:12px;align-items:stretch">
+          <div class="soft-panel"><span class="kicker">Separated responsibilities</span><p style="margin:8px 0 0;color:var(--muted);font-size:10px">Data loading, fold-local preprocessing, model fitting, evaluation, and reporting live in separate modules. The scripts connect those pieces for Random Forest, Dummy, robustness, ablation, and workbook generation.</p></div>
+          <div class="figure-slot compact" role="group" aria-label="Reserved for final pipeline visualization"><span class="slot-label">Final pipeline figure</span><span class="slot-desc">The interactive code-linked schematic above is functional; this space is reserved for the final presentation-ready diagram.</span><span class="slot-status">Reserved for final figure</span></div>
+        </div>
+        <p class="source-line"><span class="mono">scripts/run_experiment.py · src/data/ · src/preprocessing/ · src/models/ · src/evaluation/ · src/evaluation/workbook_generator.py</span></p>
+      </div>
+    </section>
+
+    <section class="slide" id="challenges" aria-label="5 of 10: Challenges and engineering" aria-hidden="true" inert tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">05 · Engineering choices and remaining limits</p>
+        <div class="section-heading">
+          <h1>Reliability comes from the details around the model</h1>
+          <p>These safeguards are visible in the implementation and tests; they reduce specific risks without resolving the dataset’s open questions.</p>
+        </div>
+        <div class="challenge-grid">
+          <article class="card challenge-card"><span class="tag amber">Class balance</span><h2>92% buggy rows</h2><p>Accuracy can look strong when the majority class dominates.</p><div class="response"><b>Response</b><p>Compare against the most-frequent Dummy baseline and report MCC, recall, specificity, balanced accuracy, and confusion counts.</p></div></article>
+          <article class="card challenge-card"><span class="tag teal">Missing values</span><h2>Missingness changes by fold</h2><p>Some selected predictors are missing, and a feature can be entirely empty in a training fold.</p><div class="response"><b>Response</b><p>Fit median imputation on training data only; record and drop features with no training values for that fold.</p></div></article>
+          <article class="card challenge-card"><span class="tag teal">Project size</span><h2>10 to 23,058 rows</h2><p>Project size varies greatly, so pooled row metrics and equal-project macro means answer different questions.</p><div class="response"><b>Response</b><p>Retain version support, project summaries, and equal-project macro results as separate views.</p></div></article>
+          <article class="card challenge-card"><span class="tag red">Degenerate MCC</span><h2>Some groups lack two classes</h2><p>MCC cannot provide an informative two-class score when actual or predicted labels contain only one class.</p><div class="response"><b>Response</b><p>Status fields distinguish “Not informative” from “Undefined”; those values are excluded from MCC averages.</p></div></article>
+          <article class="card challenge-card"><span class="tag amber">Prediction trace</span><h2>Repeated keys can collide</h2><p><code>Project–Version–Class</code> combinations repeat, so those fields do not uniquely identify each source row.</p><div class="response"><b>Response</b><p>Alignment checks compare duplicate counts and actual labels, but saved predictions lack a stable source-row identifier.</p></div></article>
+          <article class="card challenge-card"><span class="tag amber">Reproducibility</span><h2>Artifact metadata is incomplete</h2><p>The investigation found no dataset checksum in run metadata; the workbook lists the scikit-learn version as “Not recorded.” The protocol also calls for a separate all-data model, but no corresponding run script is present.</p><div class="response"><b>Response</b><p>Run configuration and fold settings are saved. Add a checksum, software version, and stable row IDs to future runs.</p></div></article>
+        </div>
+        <div class="test-strip"><strong>Tested invariants in the suite</strong><p>Tests cover disjoint project folds, one test prediction per observation, training-only imputation, feature drop behavior, duplicate-aware prediction alignment, confusion counts, metric aggregation, and workbook structure. This presentation review did not rerun the Python suite.</p></div>
+        <p class="source-line"><span class="mono">tests/ · docs/results_investigation_report.md · src/evaluation/prediction_alignment.py · src/evaluation/metrics.py</span></p>
+      </div>
+    </section>
+
+    <section class="slide" id="evaluation" aria-label="6 of 10: Evaluation methodology" aria-hidden="true" inert tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">06 · Read every score at the right level</p>
+        <div class="section-heading">
+          <h1>MCC is the anchor; aggregation defines the question</h1>
+          <p>Accuracy alone is not enough under strong imbalance. Support and grouping rules travel with each reported metric.</p>
+        </div>
+        <div class="metric-grid">
+          <article class="card metric-card"><span class="metric-name">Accuracy</span><p>Share of all observations classified correctly.</p></article>
+          <article class="card metric-card"><span class="metric-name">Precision</span><p>Of classes predicted buggy, the share that are buggy.</p></article>
+          <article class="card metric-card"><span class="metric-name">Recall</span><p>Of truly buggy classes, the share identified.</p></article>
+          <article class="card metric-card"><span class="metric-name">F1</span><p>Harmonic mean of precision and recall.</p></article>
+          <article class="card metric-card mcc-card"><span class="metric-name">MCC · primary</span><p>Combines all four confusion outcomes; useful when classes are imbalanced.</p><div class="mcc-scale"><span>−1 disagreement</span><span>0 no correlation</span><span>+1 perfect</span></div></article>
+        </div>
+        <div class="hierarchy" aria-label="Evaluation hierarchy">
+          <div class="hierarchy-card"><span class="level">LEVEL 01</span><b>Project–version metrics</b><small>Accuracy, precision, recall, F1, MCC, support and TN / FP / FN / TP.</small></div>
+          <div class="hierarchy-card"><span class="level">LEVEL 02</span><b>Project summary</b><small>Unweighted version means; support-weighted alternatives; MCC from summed counts.</small></div>
+          <div class="hierarchy-card"><span class="level">LEVEL 03</span><b>Macro across projects</b><small>Each project contributes equally. MCC averages include informative projects only.</small></div>
+        </div>
+        <div class="aggregation-grid">
+          <article class="aggregation-card"><b>Unweighted across versions</b><p>Average the metric values for each version with equal weight. It describes the typical version within that project.</p></article>
+          <article class="aggregation-card"><b>Support-weighted across versions</b><p>Weight each version’s metric by the number of classes in that version. Larger versions influence the project result more.</p></article>
+          <article class="aggregation-card"><b>Project-pooled MCC</b><p>Sum TP, TN, FP, FN across a project’s versions, then calculate MCC from those counts.</p></article>
+        </div>
+        <div class="callout" style="margin-top:12px"><strong>Workbook boundary:</strong> its “Pooled MCC” is calculated within each project and then macro-averaged across informative projects. The workbook has no single all-observation pooled MCC row. The protocol describes an overall pooled comparison, so this remains an implementation/reporting gap.</div>
+        <p class="source-line">Precision, recall and F1 use <code>zero_division=0</code>. For MCC, an actual one-class group is “Not informative”; if predictions contain one class while actual labels contain both, MCC is “Undefined.” The numeric fallback is not treated as a meaningful zero in summaries. <span class="mono">src/evaluation/metrics.py · src/evaluation/workbook_generator.py · docs/experiment-protocol.md</span></p>
+        <div class="figure-grid" aria-label="Reserved evaluation visualization areas">
+          <div class="figure-slot"><span class="slot-label">Confusion matrix</span><span class="slot-desc">Show TP, TN, FP and FN together.</span><span class="slot-status">Reserved for final figure</span></div>
+          <div class="figure-slot"><span class="slot-label">Macro vs weighted</span><span class="slot-desc">Contrast equal-version and support-weighted summaries.</span><span class="slot-status">Reserved for final figure</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="results" aria-label="7 of 10: Results and model comparison" aria-hidden="true" inert tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">07 · Strong scores, interpreted carefully</p>
+        <div class="section-heading">
+          <h1>The Random Forest clears the baseline—then the questions begin</h1>
+          <p>Headline robustness values are project-level macro means documented in the README. The evaluation workbook provides a separate version-aggregation view.</p>
+        </div>
+        <div class="result-layout">
+          <article class="card result-card">
+            <span class="tag teal">README · robustness headline</span>
+            <h2 style="margin-top:10px">Project-level averages</h2>
+            <div class="table-wrap">
+              <table aria-label="Documented project macro robustness results">
+                <thead><tr><th>Metric</th><th class="rf">Random Forest</th><th class="dummy">Dummy</th></tr></thead>
+                <tbody>
+                  <tr><td>Accuracy</td><td class="num">99.72%</td><td class="num">93.30%</td></tr>
+                  <tr><td>F1</td><td class="num">99.85%</td><td class="num">96.48%</td></tr>
+                  <tr><td>Buggy recall</td><td class="num">99.96%</td><td class="num">100.00%</td></tr>
+                  <tr><td>Specificity</td><td class="num">96.42%</td><td class="num">0.00%</td></tr>
+                  <tr><td>Balanced accuracy</td><td class="num">98.19%</td><td class="num">50.00%</td></tr>
+                  <tr><td>MCC</td><td class="num">0.978</td><td class="num">Undefined</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="result-summary">
+              <div><strong>37 / 39</strong><br>Projects: RF accuracy and F1 higher; tied in two.</div>
+              <div><strong>90 / 93</strong><br>Project–version groups: RF higher; tied in three.</div>
+            </div>
+          </article>
+          <article class="card result-card">
+            <span class="tag">Workbook · macro across projects</span>
+            <h2 style="margin-top:10px">Version means, then equal project weight</h2>
+            <div class="table-wrap">
+              <table aria-label="Evaluation workbook macro metrics">
+                <thead><tr><th>Metric</th><th class="rf">Random Forest</th><th class="dummy">Dummy</th></tr></thead>
+                <tbody>
+                  <tr><td>Accuracy</td><td class="num">99.7259%</td><td class="num">93.3493%</td></tr>
+                  <tr><td>Precision</td><td class="num">99.7307%</td><td class="num">93.3493%</td></tr>
+                  <tr><td>Recall</td><td class="num">99.9724%</td><td class="num">100.0000%</td></tr>
+                  <tr><td>F1</td><td class="num">99.8501%</td><td class="num">96.5045%</td></tr>
+                  <tr><td>MCC</td><td class="num">0.9781</td><td class="num">No informative groups</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="aggregation-note">These tables use different aggregation paths. The robustness code pools rows inside each project before the project macro mean. The workbook averages version metrics within each project, then gives each project equal weight. They should not be presented as the same calculation.</div>
+          </article>
+        </div>
+        <div class="grid-two" style="margin-top:12px">
+          <article class="card result-card">
+            <span class="tag amber">README · feature ablation</span>
+            <h2 style="margin-top:10px">Average F1 changes were small</h2>
+            <div class="table-wrap">
+              <table class="ablation-table" aria-label="README-reported feature ablation metrics">
+                <thead><tr><th>Removed predictors</th><th>Macro F1</th><th>Δ vs baseline</th><th>Macro MCC</th></tr></thead>
+                <tbody>
+                  <tr><td>None · baseline</td><td>99.850%</td><td>—</td><td>0.9781</td></tr>
+                  <tr><td>LOC</td><td>99.815%</td><td>−0.035 pp</td><td>0.9776</td></tr>
+                  <tr><td>NOC</td><td>99.809%</td><td>−0.041 pp</td><td>0.9702</td></tr>
+                  <tr><td>LOC + NOC</td><td>99.799%</td><td>−0.051 pp</td><td>0.9747</td></tr>
+                  <tr><td>LOC + NOC + CA + CE</td><td>99.785%</td><td>−0.065 pp</td><td>0.9711</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="source-line">README reports that removing all four changed 60 predictions; by version, F1 fell in 24 groups, stayed equal in 64, and rose in 5.</p>
+          </article>
+          <article class="card result-card">
+            <span class="tag teal">Supplementary workbook views</span>
+            <h2 style="margin-top:10px">Alternative aggregation, separate interpretation</h2>
+            <p style="margin:0;color:var(--muted);font-size:10px;line-height:1.6">Support-weighted macro F1: Random Forest <strong>99.84%</strong>, Dummy <strong>96.48%</strong>. Mean of informative project-pooled MCC: Random Forest <strong>0.9777</strong> across 37 projects; Dummy has no informative groups.</p>
+            <div class="callout" style="margin-top:11px">The Dummy predicts the training majority class, which is buggy here. Its 100% buggy recall does not identify non-buggy classes.</div>
+          </article>
+        </div>
+        <div class="artifact-note"><b>Evidence status</b><span>The evaluation workbook was present in the shared Experiments folder and inspected. Standalone prediction CSVs and generated robustness/ablation output tables were not present in the GitHub tree or that folder. The README’s robustness and ablation numbers are therefore documented results, not independently recalculated here.</span></div>
+        <div class="figure-grid" aria-label="Reserved results visualization areas">
+          <div class="figure-slot compact"><span class="slot-label">RF vs Dummy</span><span class="slot-desc">Compare the primary model and majority baseline.</span><span class="slot-status">Reserved for final figure</span></div>
+          <div class="figure-slot compact"><span class="slot-label">Project MCC</span><span class="slot-desc">Show spread across held-out projects.</span><span class="slot-status">Reserved for final figure</span></div>
+          <div class="figure-slot compact"><span class="slot-label">Feature importance</span><span class="slot-desc">Diagnostic view, not causal evidence.</span><span class="slot-status">Reserved for final figure</span></div>
+          <div class="figure-slot compact"><span class="slot-label">Feature-ablation comparison</span><span class="slot-desc">Show changes across the five predictor configurations.</span><span class="slot-status">Reserved for final figure</span></div>
+          <div class="figure-slot compact"><span class="slot-label">Robustness comparison</span><span class="slot-desc">Compare consistency across project and version groups.</span><span class="slot-status">Reserved for final figure</span></div>
+        </div>
+        <p class="source-line"><span class="mono">README.md · docs/results_investigation_report.md · evaluation_workbook.xlsx · src/evaluation/robustness.py · src/evaluation/feature_ablation.py</span></p>
+      </div>
+    </section>
+
+    <section class="slide" id="investigation" aria-label="8 of 10: Investigating unusually high performance" aria-hidden="true" inert tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">08 · Investigation · no shortcut conclusion</p>
+        <div class="section-heading">
+          <h1>High performance is a finding to explain</h1>
+          <p>The review found no confirmed direct target leakage in the configured feature list or target-building path. It did find patterns that deserve follow-up.</p>
+        </div>
+        <div class="evidence-grid">
+          <article class="card evidence-card"><span class="tag teal">Reviewed code</span><h2>No direct leakage identified</h2><p><code>bugs</code> creates the target but is not in the 18-feature list. The LOPO implementation groups by <code>Project</code>; the median imputer is fitted on training data only. This does not rule out indirect effects or dataset construction issues.</p></article>
+          <article class="card evidence-card"><span class="tag amber">Descriptive association</span><h2>Some metrics track the label strongly</h2><p>Directional ROC AUC: <code>loc</code> 0.9474, <code>noc</code> 0.9458, <code>ca</code> 0.8886, <code>ce</code> 0.8736. No single feature achieved perfect threshold separation. Association alone is not evidence of leakage.</p></article>
+          <article class="card evidence-card"><span class="tag red">Unresolved data integrity</span><h2>Versions and repeated records</h2><p>6,369 rows have no version value. There are 1,702 repeated <code>(Project, Version, Class)</code> keys (5,504 row occurrences), all among missing-version rows; eight keys have conflicting labels. Provenance is needed before deciding whether these are legitimate snapshots or duplication.</p></article>
+        </div>
+        <div class="integrity-grid" aria-label="Investigation counts">
+          <div class="integrity-stat"><strong>4,104</strong><span>exact 18-feature-vector groups appearing across projects</span></div>
+          <div class="integrity-stat"><strong>30,521</strong><span>rows covered by cross-project feature-vector overlap; repeated vectors had no conflicting labels</span></div>
+          <div class="integrity-stat"><strong>772</strong><span>rows in exact duplicate groups after excluding index-like field</span></div>
+          <div class="integrity-stat"><strong>8</strong><span>repeated keys with conflicting target labels</span></div>
+        </div>
+        <div class="grid-two" style="margin-top:12px">
+          <article class="card result-card">
+            <span class="kicker">Leading single-feature associations</span>
+            <div class="table-wrap" style="margin-top:7px">
+              <table class="association-table" aria-label="Descriptive associations">
+                <thead><tr><th>Predictor</th><th>Directional AUC</th><th>Spearman ρ</th></tr></thead>
+                <tbody><tr><td>LOC</td><td>0.9474</td><td>0.4304</td></tr><tr><td>NOC</td><td>0.9458</td><td>0.4236</td></tr><tr><td>CA</td><td>0.8886</td><td>0.3630</td></tr><tr><td>CE</td><td>0.8736</td><td>0.3557</td></tr></tbody>
+              </table>
+            </div>
+          </article>
+          <div class="audit-note"><strong>Audit gaps:</strong> saved predictions use repeatable keys but no stable source-row ID; run metadata lacks a dataset checksum; the inspected workbook says the scikit-learn version was “Not recorded”; and the normal RF entry script does not call the available <code>validate_dataset()</code>. No automatic deduplication was performed.</div>
+        </div>
+        <div class="callout" style="margin-top:12px">A repeated feature vector may be legitimate. These findings raise a question about what “unseen project” means for overlapping representations; they do not prove leakage or invalidate the experiment.</div>
+        <p class="source-line"><span class="mono">docs/results_investigation_report.md · docs/dataset-and-methodology.md · src/config.py · scripts/run_experiment.py</span></p>
+      </div>
+    </section>
+
+    <section class="slide" id="future" aria-label="9 of 10: Future investigations" aria-hidden="true" inert tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">09 · Proposed next phase · not yet run</p>
+        <div class="section-heading">
+          <h1>Three investigations can explain what the score is measuring</h1>
+          <p>These priorities come from the read-only investigation report. They are proposed work, not completed results.</p>
+        </div>
+        <div class="roadmap">
+          <article class="card roadmap-card">
+            <span class="tag teal">Priority 1</span>
+            <h2>Measure feature-vector overlap</h2>
+            <p>For each held-out project, separate test rows whose exact 18-feature vector is present in training from rows with no such match.</p>
+            <ul><li>Compare support and performance by group.</li><li>Summarize overlap within each held-out project.</li><li>Preserve the original run as the reference.</li></ul>
+            <div class="research-question">Question: How much performance comes from feature vectors already seen in other projects?</div>
+          </article>
+          <article class="card roadmap-card">
+            <span class="tag amber">Priority 2</span>
+            <h2>Resolve duplicates and provenance</h2>
+            <p>Investigate repeated class keys, conflicting labels, missing versions, and the undocumented index-like field.</p>
+            <ul><li>Seek authoritative source documentation.</li><li>Determine what repeated rows represent.</li><li>Do not delete or deduplicate without a separate rationale and evaluation.</li></ul>
+            <div class="research-question">Question: What does each row represent, and which repeated records are legitimate?</div>
+          </article>
+          <article class="card roadmap-card">
+            <span class="tag">Priority 3</span>
+            <h2>Extend robustness if indicated</h2>
+            <p>Review project and class outcomes, feature-importance diagnostics, and the documented ablation results before choosing new runs.</p>
+            <ul><li>Test only justified feature configurations.</li><li>Compare with the unchanged RF and Dummy reference.</li><li>Keep any new experiment in a separate output directory.</li></ul>
+            <div class="research-question">Question: Do the conclusions hold under reasonable alternative feature views?</div>
+          </article>
+        </div>
+        <div class="figure-grid" aria-label="Reserved next phase visualization">
+          <div class="figure-slot"><span class="slot-label">Overlap split</span><span class="slot-desc">Separate matched and unseen feature vectors.</span><span class="slot-status">Future analysis</span></div>
+          <div class="figure-slot"><span class="slot-label">Provenance map</span><span class="slot-desc">Trace dataset origins and row semantics.</span><span class="slot-status">Future analysis</span></div>
+          <div class="figure-slot"><span class="slot-label">Robustness follow-up</span><span class="slot-desc">Choose new tests after reviewing current evidence.</span><span class="slot-status">Future analysis</span></div>
+        </div>
+        <p class="source-line"><span class="mono">docs/results_investigation_report.md · proposed priorities; no new runs performed for this presentation</span></p>
+      </div>
+    </section>
+
+    <section class="slide" id="takeaways" aria-label="10 of 10: Takeaways" aria-hidden="true" inert tabindex="-1">
+      <div class="slide-inner">
+        <p class="eyebrow">10 · Takeaways · from baseline to explanation</p>
+        <div class="takeaway-layout">
+          <aside class="takeaway-hero">
+            <div class="big-number">The next research question</div>
+            <div>
+              <h2>How much of the score survives when the features are truly new?</h2>
+              <p>That answer will help distinguish cross-project transfer from repeated representations in the current dataset.</p>
+            </div>
+          </aside>
+          <ol class="takeaway-list">
+            <li><div><b>Separate projects, not just rows.</b><span>LOPO tests a held-out project within this dataset; it is the right boundary for the stated cross-project question.</span></div></li>
+            <li><div><b>Fit preprocessing on training projects only.</b><span>Fold-local imputation limits information flow from the held-out project into the fitted pipeline.</span></div></li>
+            <li><div><b>Read metrics with class balance and aggregation.</b><span>Accuracy, F1, MCC, version summaries, project macros, weighted means, and pooled counts answer different questions.</span></div></li>
+            <li><div><b>Excellent results still need an explanation.</b><span>No direct target leakage was identified, but feature overlap, repeated observations, missing versions, and provenance remain open.</span></div></li>
+            <li><div><b>Keep the evidence auditable.</b><span>Record checksums, software versions, and stable row IDs; preserve the original run while testing new hypotheses.</span></div></li>
+          </ol>
+        </div>
+        <div class="dark-panel" style="margin-top:17px;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap">
+          <div><span class="kicker" style="color:#a9d2c8">Where the work stands</span><p style="margin:7px 0 0">Primary LOPO, Dummy comparison, workbook, read-only investigation, and README-documented robustness / ablation findings.</p></div>
+          <span class="tag" style="color:#fff;border-color:rgba(255,255,255,.28);background:rgba(255,255,255,.08)">Next: overlap + provenance</span>
+        </div>
+        <p class="source-line"><span class="mono">Evidence trail: README.md · docs/results_investigation_report.md · docs/experiment-protocol.md · src/</span></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="controls" aria-label="Slide controls">
+    <div class="control-hint"><kbd>←</kbd><kbd>→</kbd> to navigate · <kbd>Home</kbd>/<kbd>End</kbd> for first/last</div>
+    <div class="section-counter" aria-live="polite"><strong id="current-number">01</strong> / <span id="total-number">10</span><span class="sr-only" id="current-title"> · Overview</span></div>
+    <div class="control-buttons">
+      <button class="control-button" id="previous" type="button" aria-label="Previous section" title="Previous section" disabled>←</button>
+      <button class="control-button" id="next" type="button" aria-label="Next section" title="Next section">→</button>
+    </div>
+  </footer>
+</div>
+<style>
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
+<script>
+(function () {
+  "use strict";
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var navButtons = Array.prototype.slice.call(document.querySelectorAll(".nav-item"));
+  var previousButton = document.getElementById("previous");
+  var nextButton = document.getElementById("next");
+  var currentNumber = document.getElementById("current-number");
+  var currentTitle = document.getElementById("current-title");
+  var progressFill = document.getElementById("progress-fill");
+  var totalNumber = document.getElementById("total-number");
+  var activeIndex = 0;
+  var slideTitles = slides.map(function (slide) {
+    return slide.getAttribute("aria-label").replace(/^\d+ of \d+:\s*/, "");
+  });
+
+  function indexFromHash() {
+    var id = window.location.hash.slice(1);
+    return slides.findIndex(function (slide) { return slide.id === id; });
+  }
+
+  function render(index, updateAddress) {
+    var bounded = Math.max(0, Math.min(index, slides.length - 1));
+    activeIndex = bounded;
+    slides.forEach(function (slide, i) {
+      var active = i === activeIndex;
+      slide.classList.toggle("is-active", active);
+      slide.setAttribute("aria-hidden", active ? "false" : "true");
+      if (active) {
+        slide.removeAttribute("inert");
+        slide.scrollTop = 0;
+      } else {
+        slide.setAttribute("inert", "");
+      }
+    });
+    navButtons.forEach(function (button, i) {
+      if (i === activeIndex) {
+        button.setAttribute("aria-current", "step");
+        if (typeof button.scrollIntoView === "function") {
+          button.scrollIntoView({block: "nearest", inline: "center"});
+        }
+      } else {
+        button.removeAttribute("aria-current");
+      }
+    });
+    currentNumber.textContent = String(activeIndex + 1).padStart(2, "0");
+    currentTitle.textContent = " · " + slideTitles[activeIndex];
+    totalNumber.textContent = String(slides.length).padStart(2, "0");
+    progressFill.style.width = (((activeIndex + 1) / slides.length) * 100) + "%";
+    previousButton.disabled = activeIndex === 0;
+    nextButton.disabled = activeIndex === slides.length - 1;
+    if (updateAddress) {
+      window.history.replaceState(null, "", "#" + slides[activeIndex].id);
+    }
+  }
+
+  function goToId(id) {
+    var targetIndex = slides.findIndex(function (slide) { return slide.id === id; });
+    if (targetIndex !== -1) render(targetIndex, true);
+  }
+
+  navButtons.forEach(function (button) {
+    button.addEventListener("click", function () { goToId(button.dataset.target); });
+  });
+  previousButton.addEventListener("click", function () { render(activeIndex - 1, true); });
+  nextButton.addEventListener("click", function () { render(activeIndex + 1, true); });
+
+  document.addEventListener("keydown", function (event) {
+    var target = event.target;
+    var isTextControl = target && (
+      target.matches("input, textarea, select, [contenteditable='true']") ||
+      target.getAttribute("role") === "textbox"
+    );
+    if (isTextControl) return;
+    if (event.key === "ArrowRight" || event.key === "PageDown") {
+      event.preventDefault();
+      render(activeIndex + 1, true);
+    } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+      event.preventDefault();
+      render(activeIndex - 1, true);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      render(0, true);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      render(slides.length - 1, true);
+    }
+  });
+
+  function syncFromAddress() {
+    var fromHash = indexFromHash();
+    if (fromHash !== -1) render(fromHash, false);
+  }
+  window.addEventListener("popstate", syncFromAddress);
+  window.addEventListener("hashchange", syncFromAddress);
+
+  var pipelineDetails = {
+    raw: {
+      title: "Raw CSV",
+      purpose: "The run begins with the supplied class-metric table. The raw input stays separate from model preparation.",
+      transfer: "Output → source rows carrying project, version, class, metrics, and bug counts.",
+      module: "resources/ds.csv · local reference mirror: sources/ds.csv"
+    },
+    load: {
+      title: "Load and parse",
+      purpose: "load_dataset() reads the configured CSV; blanks and dash markers become missing values. validate_dataset() exists for checks but the normal RF entry script does not call it.",
+      transfer: "Input → CSV file. Output → DataFrame ready for target construction.",
+      module: "src/data/data_loader.py · scripts/run_experiment.py"
+    },
+    target: {
+      title: "Target and features",
+      purpose: "target_builder() adds buggy = bugs > 0. prepare_modeling_data() selects only the configured 18 predictors and keeps Project, Version, Class as metadata.",
+      transfer: "Input → validated source columns. Output → X, y, and separate metadata.",
+      module: "src/data/target_builder.py · src/data/data_preparation.py · src/config.py"
+    },
+    split: {
+      title: "LOPO split",
+      purpose: "generate_lopo_splits() uses Project as the group. Each fold tests one complete project and trains on all remaining projects.",
+      transfer: "Input → metadata with Project values. Output → train/test row indices for each held-out project.",
+      module: "src/evaluation/lopo.py · src/models/lopo_runner.py"
+    },
+    impute: {
+      title: "Fold-local imputation",
+      purpose: "impute_fold_data() checks column order, fits a median SimpleImputer on training rows, and applies that fitted imputer to both sides. Entirely missing training features are dropped.",
+      transfer: "Input → fold-specific X train/test. Output → aligned imputed frames, imputer, dropped-feature list.",
+      module: "src/preprocessing/imputation.py"
+    },
+    train: {
+      title: "Fit and predict",
+      purpose: "train_fold() builds the configured Random Forest, fits it only on training rows, and predicts the held-out project. The Dummy runner instead learns the most frequent training label.",
+      transfer: "Input → imputed training data and labels. Output → model, predictions, test metadata, and fold diagnostics.",
+      module: "src/models/fold_trainer.py · src/models/random_forest.py · src/models/dummy_baseline.py"
+    },
+    metrics: {
+      title: "Score and aggregate",
+      purpose: "evaluate_predictions() scores each Project–Version group; aggregate_project_metrics() creates project summaries; calculate_macro_average() gives each project equal weight.",
+      transfer: "Input → aligned Actual and Predicted labels. Output → version, project, and macro metrics with MCC status.",
+      module: "src/evaluation/metrics.py · src/evaluation/robustness.py"
+    },
+    report: {
+      title: "Save artifacts",
+      purpose: "The RF run saves predictions, per-fold model bundles, and metadata. Workbook generation writes version metrics, project summaries, model comparison, and run notes.",
+      transfer: "Output → predictions.csv, models/, metadata.json, and evaluation_workbook.xlsx when those runs are generated.",
+      module: "src/evaluation/result_saver.py · src/evaluation/workbook_generator.py · scripts/generate_workbook.py"
+    }
+  };
+
+  var pipelineButtons = Array.prototype.slice.call(document.querySelectorAll(".flow-node"));
+  pipelineButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      var item = pipelineDetails[button.dataset.pipeline];
+      if (!item) return;
+      pipelineButtons.forEach(function (node) {
+        node.setAttribute("aria-pressed", node === button ? "true" : "false");
+      });
+      document.getElementById("pipeline-title").textContent = item.title;
+      document.getElementById("pipeline-purpose").textContent = item.purpose;
+      document.getElementById("pipeline-transfer").textContent = item.transfer;
+      document.getElementById("pipeline-module").textContent = item.module;
+    });
+  });
+
+  var initialIndex = indexFromHash();
+  render(initialIndex === -1 ? 0 : initialIndex, false);
+})();
+</script>
+</body>
+</html>
