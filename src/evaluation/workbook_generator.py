@@ -296,6 +296,7 @@ def generate_evaluation_workbook(
     predictions_path = run_dir / "predictions.csv"
     metadata_path = run_dir / "metadata.json"
     dummy_predictions_path = run_dir / "dummy_baseline" / "predictions.csv"
+    dummy_metadata_path = run_dir / "dummy_baseline" / "metadata.json"
 
     if not predictions_path.is_file():
         raise FileNotFoundError(
@@ -316,6 +317,11 @@ def generate_evaluation_workbook(
 
     dummy_macro_metrics = None
     if dummy_predictions_path.is_file():
+        if not dummy_metadata_path.is_file():
+            raise FileNotFoundError(
+                f"Dummy metadata file not found: {dummy_metadata_path}"
+            )
+        dummy_run_metadata = _read_json(dummy_metadata_path)
         dummy_predictions = pd.read_csv(
             dummy_predictions_path,
             low_memory=False,
@@ -326,6 +332,23 @@ def generate_evaluation_workbook(
             dummy_version_metrics
         )
         dummy_macro_metrics = calculate_macro_average(dummy_project_metrics)
+        if len(dummy_predictions) != len(predictions):
+            raise ValueError(
+                "Dummy predictions must cover the same number of observations as Random Forest."
+            )
+        if set(dummy_predictions["Project"].unique()) != set(predictions["Project"].unique()):
+            raise ValueError(
+                "Dummy predictions must cover the same held-out projects as Random Forest."
+            )
+        if (
+            dummy_run_metadata.get("model", {}).get("name")
+            != "DummyClassifier"
+            or dummy_run_metadata.get("model", {}).get("strategy")
+            != "most_frequent"
+        ):
+            raise ValueError(
+                "Dummy metadata must identify DummyClassifier with strategy='most_frequent'."
+            )
 
     version_metrics = version_metrics.reindex(columns=VERSION_COLUMNS)
     project_metrics = project_metrics.reindex(columns=PROJECT_COLUMNS)
