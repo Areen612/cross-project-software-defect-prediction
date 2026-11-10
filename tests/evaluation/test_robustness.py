@@ -46,6 +46,7 @@ def test_single_class_project_has_undefined_specificity_and_balanced_accuracy():
         (summary["Model"] == "RF")
         & (summary["Metric"] == "Balanced_Accuracy")
     ].iloc[0]
+    assert row["Aggregation_Level"] == "Project-pooled macro average"
     assert row["Projects_Total"] == 3
     assert row["Projects_With_Both_Classes"] == 2
     assert row["Projects_Contributing"] == 2
@@ -105,6 +106,8 @@ def test_generation_compares_rf_and_dummy_and_writes_outputs(tmp_path):
     assert (output / "version_robustness.csv").is_file()
     assert (output / "robustness_summary.csv").is_file()
     assert (output / "README.txt").is_file()
+    notes = (output / "README.txt").read_text(encoding="utf-8")
+    assert "equal-project macro average of project-pooled metrics" in notes
     result = pd.read_csv(output / "project_robustness.csv")
     assert set(result["Model"]) == {"RandomForest", "DummyClassifier"}
     assert len(result) == 6
