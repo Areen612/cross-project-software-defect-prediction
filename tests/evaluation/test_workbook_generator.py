@@ -109,7 +109,9 @@ def test_model_comparison_marks_dummy_baseline_pending(run_directory):
     status_index = headers.index("Status")
 
     dummy_rows = [row for row in rows[1:] if row[model_index] == "Dummy (most_frequent)"]
-    assert len(dummy_rows) == 30  # 2 projects x 10 metrics, plus 10 macro metrics
+    # The comparison table contains one row per Dummy metric, even while
+    # results are pending, so the same rows can be populated after the run.
+    assert len(dummy_rows) == 10
     assert all(row[status_index] == "Pending" for row in dummy_rows)
     workbook.close()
 
