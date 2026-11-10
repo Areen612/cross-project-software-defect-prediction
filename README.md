@@ -103,6 +103,111 @@ It provides a simple reference point by always predicting the majority class.
 
 Comparing the Random Forest against this baseline helps determine whether the model learns useful distinctions beyond the dataset's majority-class distribution.
 
+## Evaluation metrics and aggregation
+
+The experiments use multiple classification metrics:
+
+| Metric | What it evaluates |
+|---|---|
+| Accuracy | Overall proportion of correctly classified observations |
+| Precision | How reliable the model's positive (buggy) predictions are |
+| Recall | How many actual buggy observations the model identifies |
+| Specificity | How many actual non-buggy observations the model identifies |
+| Balanced Accuracy | Average performance across the buggy and non-buggy classes |
+| F1-score | Balance between precision and recall |
+| MCC | Overall correlation between actual and predicted classifications, accounting for all four confusion-matrix outcomes |
+
+Because the dataset is imbalanced, accuracy and F1-score are interpreted alongside specificity, balanced accuracy, and MCC.
+
+### Evaluation levels
+
+The project uses two complementary evaluation perspectives. They are calculated from the same saved out-of-project predictions, but answer different questions.
+
+#### 1. Project-version level — detailed evaluation
+
+Predictions are grouped by `Project` and `Version`.
+
+For every project-version group, the evaluation calculates:
+
+- Accuracy
+- Precision
+- Recall
+- F1-score
+- MCC
+- Support
+- Buggy and non-buggy counts
+- TN, FP, FN, and TP
+
+This is the detailed evaluation level. It shows how performance varies between versions belonging to the same held-out project.
+
+Missing version labels are retained as a separate group rather than discarded.
+
+#### 2. Project level — pooled supplementary evaluation
+
+For the supplementary project-level pooled perspective, all predictions belonging to a held-out project are combined across its versions.
+
+The classification metrics are then calculated once from the combined predictions for that project.
+
+For example, if a held-out project contains three versions, the predictions from all three versions are combined before calculating the project's pooled Accuracy, F1-score, or MCC.
+
+This perspective answers a different question from averaging version-level scores: it evaluates the model over all observations belonging to a project as one combined group.
+
+### Macro-averages across projects
+
+Both evaluation perspectives can be summarized using macro-averages across projects.
+
+- **Project-version perspective:** Calculate the selected metrics for each project-version group, average the version metrics within each project, and then average the project summaries across projects. Each project contributes equally to the final macro-average.
+- **Project-pooled perspective:** Calculate metrics from predictions pooled within each project, then average the resulting project-level metrics across projects. Each project contributes equally to the final macro-average.
+
+The two macro-averages must be labelled separately. They are not interchangeable because they use different calculations within each project.
+
+For MCC, only informative groups contribute to the corresponding mean. Groups where MCC is not informative or undefined must not be treated as ordinary zero-valued results.
+
+### Workbook aggregation details
+
+The current evaluation workbook provides the following calculations:
+
+| Workbook output | Calculation |
+|---|---|
+| `Version Metrics` | Metrics calculated separately for each project-version group. |
+| `Project Summary` | Unweighted mean of version metrics within each project, plus supplementary support-weighted metrics and project-level pooled MCC. |
+| `Model Comparison` | Project-level and macro-level comparisons between the Random Forest and Dummy baseline. |
+| `Run Notes` | Experiment metadata and aggregation descriptions. |
+
+The workbook's support-weighted metrics are calculated by weighting each version's metric value by its number of observations.
+
+The workbook's `Pooled_MCC` is calculated separately for each project by summing its version-level confusion-matrix counts and then calculating MCC.
+
+The macro `Pooled_MCC` is the mean of informative project-level pooled MCC values, with each informative project contributing equally.
+
+**Important:** The workbook does not currently contain a single dataset-wide pooled MCC calculated from all held-out predictions.
+
+### Robustness analysis aggregation details
+
+The robustness analysis independently evaluates the saved Random Forest and Dummy baseline predictions without retraining either model.
+
+It produces:
+
+- `project_robustness.csv`: metrics calculated from predictions pooled across versions within each project.
+- `version_robustness.csv`: metrics calculated separately for each project-version group.
+- `robustness_summary.csv`: descriptive statistics summarizing the project-level metric distributions.
+- `README.txt`: notes describing the robustness calculations.
+
+The project-level robustness summary reports the mean, median, standard deviation, minimum, quartiles, and maximum across projects for each metric.
+
+Its project-level means are therefore macro-averages of project-pooled metrics.
+
+### Aggregation consistency note
+
+The workbook and robustness analysis use the same saved predictions but implement different project-level aggregation approaches:
+
+- The workbook's primary project summary averages version-level metric values within each project.
+- The robustness analysis pools the predictions across versions within each project before calculating project-level metrics.
+
+Both approaches are useful, but their results must be clearly distinguished.
+
+The experiment protocol currently describes an additional dataset-wide pooled evaluation. That calculation is not currently represented as a dataset-wide pooled result in the workbook. The protocol and workbook therefore require a corresponding alignment update before the reporting methodology can be considered fully consistent.
+
 ## Additional analyses
 
 ### Robustness analysis
@@ -176,53 +281,13 @@ These findings suggest that the model's average F1-score is relatively insensiti
 
 Feature ablation is a sensitivity analysis; it does not establish causal relationships between software metrics and defects.
 
-## Evaluation metrics
-
-The experiments use multiple classification metrics:
-
-| Metric | What it evaluates |
-|---|---|
-| Accuracy | Overall proportion of correctly classified observations |
-| Precision | How reliable the model's positive (buggy) predictions are |
-| Recall | How many actual buggy observations the model identifies |
-| Specificity | How many actual non-buggy observations the model identifies |
-| Balanced Accuracy | Average performance across the buggy and non-buggy classes |
-| F1-score | Balance between precision and recall |
-| MCC | Overall correlation between actual and predicted classifications, accounting for all four confusion-matrix outcomes |
-
-Because the dataset is imbalanced, accuracy and F1-score are interpreted alongside specificity, balanced accuracy, and MCC.
-
-### Supplementary evaluation and aggregation approaches
-
-In addition to the primary project-level and version-level metrics, supplementary aggregation approaches provide different perspectives on model performance.
-
-| Approach | What gets combined? | What it tells us |
-|---|---|---|
-| Unweighted | Version metric values, with equal weight for each version | Typical version performance |
-| Support-weighted | Version metric values, weighted by the number of classes in each version | Average version performance, with larger versions contributing more |
-| Pooled MCC | TP, TN, FP, and FN counts are combined first; MCC is then calculated | Overall discrimination across all combined predictions |
-
-These approaches answer different questions:
-
-- **Unweighted aggregation** treats every version equally, regardless of its number of observations.
-- **Support-weighted aggregation** gives larger versions more influence because they contain more class observations.
-- **Pooled MCC** combines the underlying prediction counts before calculating MCC, rather than averaging individual version MCC values.
-
-These results should be interpreted separately because they represent different aggregation perspectives.
-
-**Relationship to the reported robustness results:** The headline Random Forest and Dummy baseline results reported in the Robustness Analysis and Preliminary Experimental Results sections use unweighted project-level averages, where each project contributes equally. Support-weighted metrics and pooled MCC are supplementary evaluation results provided in the evaluation workbook. They offer alternative perspectives on performance and should not be confused with the primary headline figures.
-
-MCC can be undefined for groups where the metric's mathematical denominator is zero. Undefined values are not treated as zero when calculating summary statistics.
-
-Project-level macro averages give each project equal weight. They should not be confused with metrics calculated over all individual observations pooled together.
-
 ## Preliminary experimental results
 
 The following results summarize the completed experiments.
 
 ### Random Forest robustness
 
-Project-level averages:
+The following figures are **macro-averages of project-level pooled metrics**. Predictions are pooled across versions within each project before metrics are calculated. Each project contributes equally to the macro-average.
 
 | Metric | Random Forest | Dummy baseline |
 |---|---:|---:|
@@ -375,6 +440,13 @@ Experiment outputs are stored under the `outputs/` directory.
 The main experiment produces fold-level predictions and evaluation results.
 
 The Dummy baseline produces its corresponding predictions and metrics.
+
+The evaluation workbook contains:
+
+- `Version Metrics`
+- `Project Summary`
+- `Model Comparison`
+- `Run Notes`
 
 The robustness analysis generates:
 
