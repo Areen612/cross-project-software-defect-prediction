@@ -64,8 +64,6 @@ def _build_ablation_predictions(
     selected_features = [feature for feature in X.columns if feature not in removed_features]
     if not selected_features:
         raise ValueError("Ablation configuration leaves no predictors.")
-    if set(X.columns) != set(FEATURES):
-        raise ValueError("Input predictors must match the configured 18-feature set.")
     X_variant = X.loc[:, selected_features].copy()
     started = time.perf_counter()
     results = []
