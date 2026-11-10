@@ -6,9 +6,9 @@ import pytest
 from src.evaluation.metrics import (
     _calculate_pooled_mcc,
     aggregate_project_metrics,
+    calculate_macro_average,
     evaluate_predictions,
 )
-
 
 @pytest.fixture
 def sample_predictions():
@@ -655,3 +655,151 @@ def test_aggregate_project_metrics_rejects_invalid_mcc_status(
 
     with pytest.raises(ValueError, match="MCC_Status must contain only"):
         aggregate_project_metrics(sample_version_metrics)
+        
+# ---------------------------------------------------------------------
+# calculate_macro_average()
+# ---------------------------------------------------------------------
+
+
+@pytest.fixture
+def sample_project_metrics():
+    """Project summaries for testing macro-average calculations."""
+    return pd.DataFrame({
+        "Project": ["A", "B", "C"],
+        "Accuracy": [0.6, 0.8, 1.0],
+        "Precision": [0.5, 0.7, 0.9],
+        "Recall": [0.4, 0.8, 1.0],
+        "F1": [0.45, 0.75, 0.95],
+        "Accuracy_Weighted": [0.7, 0.85, 0.95],
+        "Precision_Weighted": [0.6, 0.75, 0.85],
+        "Recall_Weighted": [0.5, 0.85, 0.95],
+        "F1_Weighted": [0.55, 0.8, 0.9],
+        "MCC": [0.4, 0.8, np.nan],
+        "MCC_Informative_Versions": [2, 3, 0],
+        "Pooled_MCC": [0.5, 0.9, 0.0],
+        "Pooled_MCC_Status": [
+            "Informative",
+            "Informative",
+            "Undefined",
+        ],
+    })
+
+
+def test_calculate_macro_average_returns_one_row(
+    sample_project_metrics,
+):
+    result = calculate_macro_average(sample_project_metrics)
+
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == 1
+
+
+def test_calculate_macro_average_counts_projects(
+    sample_project_metrics,
+):
+    result = calculate_macro_average(sample_project_metrics)
+
+    assert result.loc[0, "Project_Count"] == 3
+
+
+def test_calculate_macro_average_gives_projects_equal_weight(
+    sample_project_metrics,
+):
+    result = calculate_macro_average(sample_project_metrics)
+
+    assert result.loc[0, "Accuracy"] == pytest.approx(0.8)
+    assert result.loc[0, "Precision"] == pytest.approx(0.7)
+    assert result.loc[0, "Recall"] == pytest.approx(
+        (0.4 + 0.8 + 1.0) / 3
+    )
+
+
+def test_calculate_macro_average_calculates_weighted_metric_means(
+    sample_project_metrics,
+):
+    result = calculate_macro_average(sample_project_metrics)
+
+    assert result.loc[0, "Accuracy_Weighted"] == pytest.approx(
+        (0.7 + 0.85 + 0.95) / 3
+    )
+
+
+def test_calculate_macro_average_excludes_projects_without_informative_mcc(
+    sample_project_metrics,
+):
+    result = calculate_macro_average(sample_project_metrics)
+
+    assert result.loc[0, "MCC"] == pytest.approx(0.6)
+    assert result.loc[0, "MCC_Informative_Projects"] == 2
+
+
+def test_calculate_macro_average_excludes_non_informative_pooled_mcc(
+    sample_project_metrics,
+):
+    result = calculate_macro_average(sample_project_metrics)
+
+    assert result.loc[0, "Pooled_MCC"] == pytest.approx(0.7)
+    assert result.loc[0, "Pooled_MCC_Informative_Projects"] == 2
+
+
+def test_calculate_macro_average_returns_nan_when_no_mcc_is_informative(
+    sample_project_metrics,
+):
+    sample_project_metrics["MCC"] = np.nan
+    sample_project_metrics["MCC_Informative_Versions"] = 0
+
+    result = calculate_macro_average(sample_project_metrics)
+
+    assert pd.isna(result.loc[0, "MCC"])
+    assert result.loc[0, "MCC_Informative_Projects"] == 0
+
+
+def test_calculate_macro_average_returns_nan_when_no_pooled_mcc_is_informative(
+    sample_project_metrics,
+):
+    sample_project_metrics["Pooled_MCC_Status"] = [
+        "Not informative",
+        "Undefined",
+        "Undefined",
+    ]
+
+    result = calculate_macro_average(sample_project_metrics)
+
+    assert pd.isna(result.loc[0, "Pooled_MCC"])
+    assert result.loc[0, "Pooled_MCC_Informative_Projects"] == 0
+
+
+def test_calculate_macro_average_raises_error_for_empty_dataframe():
+    with pytest.raises(ValueError, match="Input DataFrame is empty"):
+        calculate_macro_average(pd.DataFrame())
+
+
+def test_calculate_macro_average_raises_error_for_missing_columns():
+    project_metrics = pd.DataFrame({
+        "Project": ["A"],
+        "Accuracy": [0.8],
+    })
+
+    with pytest.raises(ValueError, match="missing required columns"):
+        calculate_macro_average(project_metrics)
+
+
+def test_calculate_macro_average_rejects_duplicate_projects(
+    sample_project_metrics,
+):
+    duplicate = pd.concat(
+        [sample_project_metrics, sample_project_metrics.iloc[[0]]],
+        ignore_index=True,
+    )
+
+    with pytest.raises(ValueError, match="one row per project"):
+        calculate_macro_average(duplicate)
+
+
+def test_calculate_macro_average_rejects_missing_project(
+    sample_project_metrics,
+):
+    sample_project_metrics.loc[0, "Project"] = None
+
+    with pytest.raises(ValueError, match="Project cannot contain missing"):
+        calculate_macro_average(sample_project_metrics)

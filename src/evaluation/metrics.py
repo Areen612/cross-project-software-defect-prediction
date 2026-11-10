@@ -427,3 +427,136 @@ def aggregate_project_metrics(
     )
 
     return project_metrics_dataframe
+
+
+def calculate_macro_average(
+    project_metrics_dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Calculate macro-average metrics across projects.
+
+    Every project contributes equally, regardless of its number
+    of versions or class observations.
+
+    MCC:
+        Averages project-level MCC values only for projects
+        with at least one informative version.
+
+    Pooled MCC:
+        Averages project-level pooled MCC values only for projects
+        whose pooled MCC status is informative.
+
+    Returns:
+        A one-row DataFrame containing macro-average metrics
+        and the number of projects contributing to each MCC result.
+    """
+    if project_metrics_dataframe.empty:
+        raise ValueError(
+            "Input DataFrame is empty. Cannot calculate macro average."
+        )
+
+    required_columns = {
+        "Project",
+        "Accuracy",
+        "Precision",
+        "Recall",
+        "F1",
+        "Accuracy_Weighted",
+        "Precision_Weighted",
+        "Recall_Weighted",
+        "F1_Weighted",
+        "MCC",
+        "MCC_Informative_Versions",
+        "Pooled_MCC",
+        "Pooled_MCC_Status",
+    }
+
+    missing_columns = required_columns - set(
+        project_metrics_dataframe.columns
+    )
+
+    if missing_columns:
+        raise ValueError(
+            f"Input DataFrame is missing required columns: "
+            f"{sorted(missing_columns)}"
+        )
+
+    if project_metrics_dataframe["Project"].isnull().any():
+        raise ValueError("Project cannot contain missing values.")
+
+    if project_metrics_dataframe["Project"].duplicated().any():
+        raise ValueError(
+            "Input DataFrame must contain one row per project."
+        )
+
+    metric_columns = [
+        "Accuracy",
+        "Precision",
+        "Recall",
+        "F1",
+        "Accuracy_Weighted",
+        "Precision_Weighted",
+        "Recall_Weighted",
+        "F1_Weighted",
+    ]
+
+    non_numeric_columns = [
+        column
+        for column in metric_columns
+        if not pd.api.types.is_numeric_dtype(
+            project_metrics_dataframe[column]
+        )
+    ]
+
+    if non_numeric_columns:
+        raise ValueError(
+            f"Metric columns must be numeric: {non_numeric_columns}"
+        )
+
+    valid_pooled_statuses = VALID_MCC_STATUSES
+
+    if not project_metrics_dataframe["Pooled_MCC_Status"].isin(
+        valid_pooled_statuses
+    ).all():
+        raise ValueError(
+            "Pooled_MCC_Status must contain only 'Informative', "
+            "'Not informative', or 'Undefined'."
+        )
+
+    # Every project contributes equally to these metrics.
+    macro_results = {
+        "Project_Count": len(project_metrics_dataframe),
+    }
+
+    for metric in metric_columns:
+        macro_results[metric] = (
+            project_metrics_dataframe[metric].mean()
+        )
+
+    # Mean project-level MCC, excluding projects without
+    # an informative project-level MCC.
+    informative_mcc_projects = project_metrics_dataframe[
+        project_metrics_dataframe["MCC_Informative_Versions"] > 0
+    ]
+
+    macro_results["MCC"] = informative_mcc_projects["MCC"].mean()
+
+    macro_results["MCC_Informative_Projects"] = len(
+        informative_mcc_projects
+    )
+
+    # Mean of project-level pooled MCC values, including only
+    # projects with informative pooled MCC.
+    informative_pooled_projects = project_metrics_dataframe[
+        project_metrics_dataframe["Pooled_MCC_Status"] == "Informative"
+    ]
+
+    macro_results["Pooled_MCC"] = (
+        informative_pooled_projects["Pooled_MCC"].mean()
+    )
+
+    macro_results["Pooled_MCC_Informative_Projects"] = len(
+        informative_pooled_projects
+    )
+
+    return pd.DataFrame([macro_results])
