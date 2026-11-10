@@ -295,6 +295,7 @@ def generate_evaluation_workbook(
     run_dir = Path(run_dir)
     predictions_path = run_dir / "predictions.csv"
     metadata_path = run_dir / "metadata.json"
+    dummy_predictions_path = run_dir / "dummy_baseline" / "predictions.csv"
 
     if not predictions_path.is_file():
         raise FileNotFoundError(
@@ -313,9 +314,25 @@ def generate_evaluation_workbook(
     project_metrics = aggregate_project_metrics(version_metrics)
     macro_metrics = calculate_macro_average(project_metrics)
 
+    dummy_macro_metrics = None
+    if dummy_predictions_path.is_file():
+        dummy_predictions = pd.read_csv(
+            dummy_predictions_path,
+            low_memory=False,
+        )
+        _validate_predictions(dummy_predictions)
+        dummy_version_metrics = evaluate_predictions(dummy_predictions)
+        dummy_project_metrics = aggregate_project_metrics(
+            dummy_version_metrics
+        )
+        dummy_macro_metrics = calculate_macro_average(dummy_project_metrics)
+
     version_metrics = version_metrics.reindex(columns=VERSION_COLUMNS)
     project_metrics = project_metrics.reindex(columns=PROJECT_COLUMNS)
-    comparison = _build_model_comparison(macro_metrics)
+    comparison = _build_model_comparison(
+        macro_metrics,
+        dummy_macro_metrics,
+    )
     run_notes = _build_run_notes(
         metadata,
         version_metrics,
