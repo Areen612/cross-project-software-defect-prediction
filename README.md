@@ -210,6 +210,8 @@ These approaches answer different questions:
 
 These results should be interpreted separately because they represent different aggregation perspectives.
 
+**Relationship to the reported robustness results:** The headline Random Forest and Dummy baseline results reported in the Robustness Analysis and Preliminary Experimental Results sections use unweighted project-level averages, where each project contributes equally. Support-weighted metrics and pooled MCC are supplementary evaluation results provided in the evaluation workbook. They offer alternative perspectives on performance and should not be confused with the primary headline figures.
+
 MCC can be undefined for groups where the metric's mathematical denominator is zero. Undefined values are not treated as zero when calculating summary statistics.
 
 Project-level macro averages give each project equal weight. They should not be confused with metrics calculated over all individual observations pooled together.
