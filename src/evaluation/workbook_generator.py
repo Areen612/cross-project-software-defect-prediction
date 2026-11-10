@@ -50,7 +50,9 @@ def _read_json(path: Path) -> dict[str, Any]:
         with path.open("r", encoding="utf-8") as file:
             data = json.load(file)
     except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Could not read metadata JSON at '{path}': {exc}") from exc
+        raise ValueError(
+            f"Could not read metadata JSON at '{path}': {exc}"
+        ) from exc
 
     if not isinstance(data, dict):
         raise ValueError("Experiment metadata must contain a JSON object.")
@@ -72,37 +74,77 @@ def _validate_predictions(predictions: pd.DataFrame) -> None:
             # CSV serialization normally produces bools, but accepting
             # unambiguous 0/1 values makes the input robust to CSV writers.
             values = set(predictions[column].dropna().unique())
-            if predictions[column].isna().any() or not values.issubset({0, 1, False, True}):
-                raise ValueError(f"Column '{column}' must contain boolean labels.")
+            if (
+                predictions[column].isna().any()
+                or not values.issubset({0, 1, False, True})
+            ):
+                raise ValueError(
+                    f"Column '{column}' must contain boolean labels."
+                )
             predictions[column] = predictions[column].astype(bool)
 
 
-def _build_model_comparison(
-    project_metrics: pd.DataFrame,
-    macro_metrics: pd.DataFrame,
-) -> pd.DataFrame:
+def _build_model_comparison(macro_metrics: pd.DataFrame) -> pd.DataFrame:
     """Create RF comparison rows; Dummy is explicitly marked pending."""
-    rows: list[dict[str, Any]] = []
+    macro = macro_metrics.iloc[0]
+    informative_mcc_count = int(macro["MCC_Informative_Projects"])
+    informative_pooled_count = int(macro["Pooled_MCC_Informative_Projects"])
+
     rf_metrics = [
-        ("Macro average across projects", "Accuracy", macro_metrics.iloc[0]["Accuracy"]),
-        ("Macro average across projects", "Precision", macro_metrics.iloc[0]["Precision"]),
-        ("Macro average across projects", "Recall", macro_metrics.iloc[0]["Recall"]),
-        ("Macro average across projects", "F1", macro_metrics.iloc[0]["F1"]),
-        ("Macro average across projects", "MCC", macro_metrics.iloc[0]["MCC"]),
-        ("Macro average across projects", "Pooled MCC", macro_metrics.iloc[0]["Pooled_MCC"]),
-        ("Macro average across projects", "Support-weighted Accuracy", macro_metrics.iloc[0]["Accuracy_Weighted"]),
-        ("Macro average across projects", "Support-weighted Precision", macro_metrics.iloc[0]["Precision_Weighted"]),
-        ("Macro average across projects", "Support-weighted Recall", macro_metrics.iloc[0]["Recall_Weighted"]),
-        ("Macro average across projects", "Support-weighted F1", macro_metrics.iloc[0]["F1_Weighted"]),
+        ("Accuracy", macro["Accuracy"], "All projects", "Equal project weighting."),
+        ("Precision", macro["Precision"], "All projects", "Equal project weighting."),
+        ("Recall", macro["Recall"], "All projects", "Equal project weighting."),
+        ("F1", macro["F1"], "All projects", "Equal project weighting."),
+        (
+            "MCC",
+            macro["MCC"],
+            f"{informative_mcc_count} informative projects",
+            "Mean of project-level MCC; projects without informative version-level MCC are excluded.",
+        ),
+        (
+            "Pooled MCC",
+            macro["Pooled_MCC"],
+            f"{informative_pooled_count} informative projects",
+            "Mean of project-level pooled MCC; non-informative pooled results are excluded.",
+        ),
+        (
+            "Support-weighted Accuracy",
+            macro["Accuracy_Weighted"],
+            "All projects",
+            "Macro mean of project support-weighted version metrics.",
+        ),
+        (
+            "Support-weighted Precision",
+            macro["Precision_Weighted"],
+            "All projects",
+            "Macro mean of project support-weighted version metrics.",
+        ),
+        (
+            "Support-weighted Recall",
+            macro["Recall_Weighted"],
+            "All projects",
+            "Macro mean of project support-weighted version metrics.",
+        ),
+        (
+            "Support-weighted F1",
+            macro["F1_Weighted"],
+            "All projects",
+            "Macro mean of project support-weighted version metrics.",
+        ),
     ]
-    for level, metric, value in rf_metrics:
+
+    rows: list[dict[str, Any]] = []
+    for metric, value, contributing_groups, note in rf_metrics:
         rows.append({
             "Model": "Random Forest",
-            "Evaluation_Level": level,
+            "Evaluation_Level": "Macro average across projects",
             "Metric": metric,
             "Value": value,
-            "Status": "Available" if pd.notna(value) else "No informative groups",
-            "Notes": "LOPO; equal project weighting for macro averages",
+            "Status": (
+                "Available" if pd.notna(value)
+                else "No informative groups"
+            ),
+            "Notes": f"{contributing_groups}. {note}",
         })
 
     rows.append({
@@ -111,13 +153,20 @@ def _build_model_comparison(
         "Metric": "All comparison metrics",
         "Value": None,
         "Status": "Pending",
-        "Notes": "Run the DummyClassifier baseline and generate its evaluation before comparison.",
+        "Notes": (
+            "Run the DummyClassifier baseline and generate its evaluation "
+            "before comparison."
+        ),
     })
     return pd.DataFrame(rows, columns=COMPARISON_COLUMNS)
 
 
-def _build_run_notes(metadata: dict[str, Any], version_metrics: pd.DataFrame,
-                     project_metrics: pd.DataFrame, macro_metrics: pd.DataFrame) -> pd.DataFrame:
+def _build_run_notes(
+    metadata: dict[str, Any],
+    version_metrics: pd.DataFrame,
+    project_metrics: pd.DataFrame,
+    macro_metrics: pd.DataFrame,
+) -> pd.DataFrame:
     experiment = metadata.get("experiment", {})
     model = metadata.get("model", {})
     target = metadata.get("target", {})
@@ -134,7 +183,12 @@ def _build_run_notes(metadata: dict[str, Any], version_metrics: pd.DataFrame,
         ("LOPO folds", experiment.get("number_of_folds", "Not recorded")),
         ("Predictions in metadata", experiment.get("number_of_predictions", "Not recorded")),
         ("Runtime (seconds)", experiment.get("runtime_seconds", "Not recorded")),
-        ("scikit-learn version", experiment.get("environment", {}).get("scikit_learn_version", "Not recorded")),
+        (
+            "scikit-learn version",
+            experiment.get("environment", {}).get(
+                "scikit_learn_version", "Not recorded"
+            ),
+        ),
         ("Model", model.get("name", "Not recorded")),
         ("Number of estimators", model.get("n_estimators", "Not recorded")),
         ("Max features", model.get("max_features", "Not recorded")),
@@ -148,18 +202,43 @@ def _build_run_notes(metadata: dict[str, Any], version_metrics: pd.DataFrame,
         ("Version groups evaluated", len(version_metrics)),
         ("Projects summarized", len(project_metrics)),
         ("Macro-average projects", int(macro_metrics.iloc[0]["Project_Count"])),
-        ("Version-level aggregation", "Metrics are calculated separately for each Project-Version pair; missing versions are retained."),
-        ("Project-level primary metrics", "Unweighted mean across versions; each version contributes equally."),
-        ("Project-level supplementary metrics", "Support-weighted means across versions."),
-        ("MCC handling", "MCC means exclude versions/projects without informative MCC; status columns distinguish non-informative and undefined cases."),
-        ("Pooled MCC", "Calculated from summed confusion-matrix counts, not by averaging version-level MCC."),
-        ("Macro averaging", "Each project contributes equally. MCC and pooled MCC include only informative projects."),
-        ("Dummy baseline", "Not yet run; no baseline results are fabricated in this workbook."),
+        (
+            "Version-level aggregation",
+            "Metrics are calculated separately for each Project-Version pair; missing versions are retained.",
+        ),
+        (
+            "Project-level primary metrics",
+            "Unweighted mean across versions; each version contributes equally.",
+        ),
+        (
+            "Project-level supplementary metrics",
+            "Support-weighted means across versions.",
+        ),
+        (
+            "MCC handling",
+            "MCC means exclude versions/projects without informative MCC; status columns distinguish non-informative and undefined cases.",
+        ),
+        (
+            "Pooled MCC",
+            "Calculated from summed confusion-matrix counts, not by averaging version-level MCC.",
+        ),
+        (
+            "Macro averaging",
+            "Each project contributes equally. MCC and pooled MCC include only informative projects.",
+        ),
+        (
+            "Dummy baseline",
+            "Not yet run; no baseline results are fabricated in this workbook.",
+        ),
     ]
     return pd.DataFrame(notes, columns=["Item", "Value"])
 
 
-def _format_worksheet(worksheet, dataframe: pd.DataFrame, table_name: str) -> None:
+def _format_worksheet(
+    worksheet,
+    dataframe: pd.DataFrame,
+    table_name: str,
+) -> None:
     worksheet.freeze_panes = "A2"
     worksheet.sheet_view.showGridLines = False
     worksheet.auto_filter.ref = worksheet.dimensions
@@ -172,12 +251,20 @@ def _format_worksheet(worksheet, dataframe: pd.DataFrame, table_name: str) -> No
     worksheet.row_dimensions[1].height = 28
 
     for column_cells in worksheet.columns:
-        values = [len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells]
+        values = [
+            len(str(cell.value)) if cell.value is not None else 0
+            for cell in column_cells
+        ]
         width = min(max(max(values, default=10) + 2, 12), 48)
-        worksheet.column_dimensions[get_column_letter(column_cells[0].column)].width = width
+        worksheet.column_dimensions[
+            get_column_letter(column_cells[0].column)
+        ].width = width
 
     if len(dataframe.columns) and len(dataframe) > 0:
-        reference = f"A1:{get_column_letter(len(dataframe.columns))}{len(dataframe) + 1}"
+        reference = (
+            f"A1:{get_column_letter(len(dataframe.columns))}"
+            f"{len(dataframe) + 1}"
+        )
         table = Table(displayName=table_name, ref=reference)
         table.tableStyleInfo = TableStyleInfo(
             name="TableStyleMedium2",
@@ -188,15 +275,18 @@ def _format_worksheet(worksheet, dataframe: pd.DataFrame, table_name: str) -> No
         )
         worksheet.add_table(table)
 
-    # Apply readable numeric formats to metrics and MCC values.
+    numeric_formats = {
+        "Accuracy", "Precision", "Recall", "F1", "MCC", "Pooled_MCC",
+        "Accuracy_Weighted", "Precision_Weighted", "Recall_Weighted",
+        "F1_Weighted", "Value",
+    }
     for column_index, column_name in enumerate(dataframe.columns, start=1):
-        if column_name in {
-            "Accuracy", "Precision", "Recall", "F1", "MCC", "Pooled_MCC",
-            "Accuracy_Weighted", "Precision_Weighted", "Recall_Weighted",
-            "F1_Weighted", "Value",
-        }:
+        if column_name in numeric_formats:
             for row_index in range(2, len(dataframe) + 2):
-                worksheet.cell(row=row_index, column=column_index).number_format = "0.0000"
+                worksheet.cell(
+                    row=row_index,
+                    column=column_index,
+                ).number_format = "0.0000"
 
 
 def generate_evaluation_workbook(
@@ -214,9 +304,13 @@ def generate_evaluation_workbook(
     metadata_path = run_dir / "metadata.json"
 
     if not predictions_path.is_file():
-        raise FileNotFoundError(f"Predictions file not found: {predictions_path}")
+        raise FileNotFoundError(
+            f"Predictions file not found: {predictions_path}"
+        )
     if not metadata_path.is_file():
-        raise FileNotFoundError(f"Metadata file not found: {metadata_path}")
+        raise FileNotFoundError(
+            f"Metadata file not found: {metadata_path}"
+        )
 
     predictions = pd.read_csv(predictions_path, low_memory=False)
     _validate_predictions(predictions)
@@ -228,8 +322,13 @@ def generate_evaluation_workbook(
 
     version_metrics = version_metrics.reindex(columns=VERSION_COLUMNS)
     project_metrics = project_metrics.reindex(columns=PROJECT_COLUMNS)
-    comparison = _build_model_comparison(project_metrics, macro_metrics)
-    run_notes = _build_run_notes(metadata, version_metrics, project_metrics, macro_metrics)
+    comparison = _build_model_comparison(macro_metrics)
+    run_notes = _build_run_notes(
+        metadata,
+        version_metrics,
+        project_metrics,
+        macro_metrics,
+    )
 
     if output_path is None:
         output_path = run_dir / "evaluation_workbook.xlsx"
@@ -247,6 +346,10 @@ def generate_evaluation_workbook(
         ]
         for sheet_name, dataframe, table_name in sheets:
             dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
-            _format_worksheet(writer.book[sheet_name], dataframe, table_name)
+            _format_worksheet(
+                writer.book[sheet_name],
+                dataframe,
+                table_name,
+            )
 
     return output_path
