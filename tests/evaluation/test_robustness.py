@@ -13,6 +13,7 @@ def _sample_predictions():
     return pd.DataFrame({
         "Project": ["A", "A", "A", "A", "B", "B", "B", "B", "C", "C"],
         "Version": ["1", "1", "2", "2", "1", "1", "2", "2", None, None],
+        "Class": ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "C1", "C2"],
         "Actual": [True, False, True, False, True, False, True, False, True, True],
         "Predicted": [True, False, True, True, True, False, False, False, True, True],
     })
