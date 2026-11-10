@@ -109,8 +109,8 @@ def test_model_comparison_marks_dummy_baseline_pending(run_directory):
     status_index = headers.index("Status")
 
     dummy_rows = [row for row in rows[1:] if row[model_index] == "Dummy (most_frequent)"]
-    assert len(dummy_rows) == 1
-    assert dummy_rows[0][status_index] == "Pending"
+    assert len(dummy_rows) == 30  # 2 projects x 10 metrics, plus 10 macro metrics
+    assert all(row[status_index] == "Pending" for row in dummy_rows)
     workbook.close()
 
 
@@ -258,11 +258,55 @@ def test_generator_includes_dummy_metrics_when_baseline_predictions_exist(run_di
         row for row in rows[1:]
         if row[model_index] == "Dummy (most_frequent)"
     ]
-    assert len(dummy_rows) == 10
+    assert len(dummy_rows) == 30  # project-level and macro metrics
     assert all(row[status_index] != "Pending" for row in dummy_rows)
     assert any(row[metric_index] == "Accuracy" for row in dummy_rows)
+    evaluation_index = headers.index("Evaluation_Level")
+    assert sum(row[evaluation_index] == "Project" for row in dummy_rows) == 20
+    assert sum(row[evaluation_index] == "Macro average" for row in dummy_rows) == 10
 
     notes = list(workbook["Run Notes"].iter_rows(values_only=True))
     notes_dict = {row[0]: row[1] for row in notes[1:]}
     assert notes_dict["Dummy baseline"] == "Evaluated using the same LOPO protocol."
     workbook.close()
+
+
+
+def test_generator_rejects_dummy_predictions_with_different_actual_labels(run_directory):
+    dummy_dir = run_directory / "dummy_baseline"
+    dummy_dir.mkdir()
+    dummy_predictions = pd.read_csv(run_directory / "predictions.csv")
+    dummy_predictions.loc[0, "Actual"] = not bool(dummy_predictions.loc[0, "Actual"])
+    dummy_predictions.to_csv(dummy_dir / "predictions.csv", index=False)
+    (dummy_dir / "metadata.json").write_text(
+        json.dumps({
+            "model": {
+                "name": "DummyClassifier",
+                "strategy": "most_frequent",
+            }
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="observations or their Actual labels differ"):
+        generate_evaluation_workbook(run_directory)
+
+
+def test_generator_rejects_dummy_predictions_with_changed_class_identity(run_directory):
+    dummy_dir = run_directory / "dummy_baseline"
+    dummy_dir.mkdir()
+    dummy_predictions = pd.read_csv(run_directory / "predictions.csv")
+    dummy_predictions.loc[0, "Class"] = "A_Different_Class"
+    dummy_predictions.to_csv(dummy_dir / "predictions.csv", index=False)
+    (dummy_dir / "metadata.json").write_text(
+        json.dumps({
+            "model": {
+                "name": "DummyClassifier",
+                "strategy": "most_frequent",
+            }
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="observations or their Actual labels differ"):
+        generate_evaluation_workbook(run_directory)
