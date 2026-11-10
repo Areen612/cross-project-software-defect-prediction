@@ -171,3 +171,14 @@ def test_run_does_not_overwrite_existing_ablation_output(tmp_path, monkeypatch):
     with pytest.raises(FileExistsError, match="already exists"):
         run_feature_ablation(run_dir, configurations={"baseline": []})
     assert (existing / "keep.txt").read_text() == "preserve"
+
+
+def test_empty_custom_configuration_is_rejected(tmp_path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "predictions.csv").write_text(
+        "Project,Version,Class,Actual,Predicted\\n", encoding="utf-8"
+    )
+    (run_dir / "metadata.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="At least one"):
+        run_feature_ablation(run_dir, configurations={})
