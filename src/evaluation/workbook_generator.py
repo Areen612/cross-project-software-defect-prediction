@@ -224,7 +224,7 @@ def _build_run_notes(
         ),
         (
             "Macro averaging",
-            "Each project contributes equally. MCC and pooled MCC include only informative projects.",
+            "Each project contributes equally (equal project weighting). MCC and pooled MCC include only informative projects.",
         ),
         (
             "Dummy baseline",
