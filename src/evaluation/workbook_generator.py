@@ -16,6 +16,7 @@ from src.evaluation.metrics import (
     aggregate_project_metrics,
     calculate_macro_average,
 )
+from src.evaluation.prediction_alignment import validate_prediction_alignment
 
 
 SHEET_NAMES = [
@@ -41,7 +42,26 @@ PROJECT_COLUMNS = [
 ]
 
 COMPARISON_COLUMNS = [
-    "Model", "Evaluation_Level", "Metric", "Value", "Status", "Notes",
+    "Model",
+    "Evaluation_Level",
+    "Project",
+    "Metric",
+    "Value",
+    "Status",
+    "Notes",
+]
+
+COMPARISON_METRICS = [
+    ("Accuracy", "Accuracy"),
+    ("Precision", "Precision"),
+    ("Recall", "Recall"),
+    ("F1", "F1"),
+    ("MCC", "MCC"),
+    ("Pooled MCC", "Pooled_MCC"),
+    ("Support-weighted Accuracy", "Accuracy_Weighted"),
+    ("Support-weighted Precision", "Precision_Weighted"),
+    ("Support-weighted Recall", "Recall_Weighted"),
+    ("Support-weighted F1", "F1_Weighted"),
 ]
 
 
@@ -71,8 +91,6 @@ def _validate_predictions(predictions: pd.DataFrame) -> None:
 
     for column in ("Actual", "Predicted"):
         if not pd.api.types.is_bool_dtype(predictions[column]):
-            # CSV serialization normally produces bools, but accepting
-            # unambiguous 0/1 values makes the input robust to CSV writers.
             values = set(predictions[column].dropna().unique())
             if (
                 predictions[column].isna().any()
@@ -84,67 +102,100 @@ def _validate_predictions(predictions: pd.DataFrame) -> None:
             predictions[column] = predictions[column].astype(bool)
 
 
+def _metric_status(row: pd.Series, source_metric: str) -> tuple[str, str]:
+    """Return status and contributor note for a project-level metric."""
+    if source_metric == "MCC":
+        count = int(row["MCC_Informative_Versions"])
+        if count == 0:
+            return "No informative groups", "No informative Project-Version groups."
+        return "Available", f"{count} informative Project-Version groups."
+    if source_metric == "Pooled_MCC":
+        status = row["Pooled_MCC_Status"]
+        if status != "Informative":
+            return "No informative groups", f"Pooled MCC status: {status}."
+        return "Available", "Calculated from the project's combined confusion counts."
+    return "Available", "Calculated at project level."
+
+
 def _build_model_comparison(
+    rf_project_metrics: pd.DataFrame,
     rf_macro_metrics: pd.DataFrame,
+    dummy_project_metrics: pd.DataFrame | None = None,
     dummy_macro_metrics: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Create a comparable macro-metric table for RF and Dummy."""
-    metric_specs = [
-        ("Accuracy", "Accuracy", "All projects"),
-        ("Precision", "Precision", "All projects"),
-        ("Recall", "Recall", "All projects"),
-        ("F1", "F1", "All projects"),
+    """
+    Compare RF and Dummy metrics per project and across macro averages.
+
+    When Dummy results are unavailable, corresponding rows are present with
+    Pending status so the comparison layout remains stable.
+    """
+    model_data = [
+        ("Random Forest", rf_project_metrics, rf_macro_metrics, True),
         (
-            "MCC",
-            "MCC",
-            "Mean of projects with informative version-level MCC",
+            "Dummy (most_frequent)",
+            dummy_project_metrics,
+            dummy_macro_metrics,
+            dummy_project_metrics is not None and dummy_macro_metrics is not None,
         ),
-        (
-            "Pooled MCC",
-            "Pooled_MCC",
-            "Mean of projects with informative pooled MCC",
-        ),
-        ("Support-weighted Accuracy", "Accuracy_Weighted", "All projects"),
-        ("Support-weighted Precision", "Precision_Weighted", "All projects"),
-        ("Support-weighted Recall", "Recall_Weighted", "All projects"),
-        ("Support-weighted F1", "F1_Weighted", "All projects"),
     ]
 
-    model_results = [
-        ("Random Forest", rf_macro_metrics, True),
-        ("Dummy (most_frequent)", dummy_macro_metrics, dummy_macro_metrics is not None),
-    ]
     rows: list[dict[str, Any]] = []
 
-    for model_name, macro_dataframe, available in model_results:
-        for display_metric, source_metric, contribution_note in metric_specs:
+    for model_name, project_dataframe, macro_dataframe, available in model_data:
+        # The RF project list defines the rows in the pending Dummy comparison.
+        project_source = (
+            rf_project_metrics if project_dataframe is None else project_dataframe
+        )
+
+        for _, project_row in project_source.iterrows():
+            project_name = project_row["Project"]
+            for display_metric, source_metric in COMPARISON_METRICS:
+                if not available:
+                    value = None
+                    status = "Pending"
+                    notes = "Run the DummyClassifier baseline to populate this result."
+                else:
+                    value = project_row[source_metric]
+                    status, notes = _metric_status(project_row, source_metric)
+
+                rows.append({
+                    "Model": model_name,
+                    "Evaluation_Level": "Project",
+                    "Project": project_name,
+                    "Metric": display_metric,
+                    "Value": value,
+                    "Status": status,
+                    "Notes": notes,
+                })
+
+        # Macro rows
+        for display_metric, source_metric in COMPARISON_METRICS:
             if not available:
                 value = None
                 status = "Pending"
                 notes = "Run the DummyClassifier baseline to populate this result."
             else:
-                macro = macro_dataframe.iloc[0]
-                value = macro[source_metric]
+                macro_row = macro_dataframe.iloc[0]
+                value = macro_row[source_metric]
                 status = "Available" if pd.notna(value) else "No informative groups"
 
                 if source_metric == "MCC":
-                    contribution_note = (
-                        f"{int(macro['MCC_Informative_Projects'])} informative projects; "
-                        + contribution_note
+                    notes = (
+                        f"{int(macro_row['MCC_Informative_Projects'])} informative projects; "
+                        "macro mean of informative project-level MCC."
                     )
                 elif source_metric == "Pooled_MCC":
-                    contribution_note = (
-                        f"{int(macro['Pooled_MCC_Informative_Projects'])} informative projects; "
-                        + contribution_note
+                    notes = (
+                        f"{int(macro_row['Pooled_MCC_Informative_Projects'])} informative projects; "
+                        "macro mean of informative project-level pooled MCC."
                     )
-                notes = (
-                    "Macro average; each project contributes equally. "
-                    + contribution_note
-                )
+                else:
+                    notes = "Macro average; every project contributes equally."
 
             rows.append({
                 "Model": model_name,
-                "Evaluation_Level": "Macro average across projects",
+                "Evaluation_Level": "Macro average",
+                "Project": None,
                 "Metric": display_metric,
                 "Value": value,
                 "Status": status,
@@ -159,7 +210,7 @@ def _build_run_notes(
     version_metrics: pd.DataFrame,
     project_metrics: pd.DataFrame,
     macro_metrics: pd.DataFrame,
-    dummy_available: bool = False,
+    dummy_metadata: dict[str, Any] | None = None,
 ) -> pd.DataFrame:
     experiment = metadata.get("experiment", {})
     model = metadata.get("model", {})
@@ -221,14 +272,29 @@ def _build_run_notes(
             "Each project contributes equally (equal project weighting). MCC and pooled MCC include only informative projects.",
         ),
         (
+            "Performance investigation",
+            "The unusually high Random Forest scores require comparison against the Dummy baseline and follow-up checks for target leakage, data leakage, and split/data integrity before drawing conclusions.",
+        ),
+        (
             "Dummy baseline",
             (
-                "Evaluated using the same LOPO protocol."
-                if dummy_available
+                "Evaluated using the same LOPO protocol and observation set."
+                if dummy_metadata is not None
                 else "Not yet run; no baseline results are fabricated in this workbook."
             ),
         ),
     ]
+
+    if dummy_metadata is not None:
+        dummy_experiment = dummy_metadata.get("experiment", {})
+        dummy_model = dummy_metadata.get("model", {})
+        notes.extend([
+            ("Dummy model", dummy_model.get("name", "Not recorded")),
+            ("Dummy strategy", dummy_model.get("strategy", "Not recorded")),
+            ("Dummy runtime (seconds)", dummy_experiment.get("runtime_seconds", "Not recorded")),
+            ("Dummy LOPO folds", dummy_experiment.get("number_of_folds", "Not recorded")),
+        ])
+
     return pd.DataFrame(notes, columns=["Item", "Value"])
 
 
@@ -291,12 +357,7 @@ def generate_evaluation_workbook(
     run_dir: str | Path,
     output_path: str | Path | None = None,
 ) -> Path:
-    """
-    Generate an Excel workbook from an existing run's predictions.csv and metadata.json.
-
-    The Random Forest is evaluated from its saved predictions; no model rerun
-    is performed. Dummy baseline entries remain marked Pending.
-    """
+    """Generate an Excel workbook from saved RF and optional Dummy LOPO predictions."""
     run_dir = Path(run_dir)
     predictions_path = run_dir / "predictions.csv"
     metadata_path = run_dir / "metadata.json"
@@ -320,7 +381,10 @@ def generate_evaluation_workbook(
     project_metrics = aggregate_project_metrics(version_metrics)
     macro_metrics = calculate_macro_average(project_metrics)
 
+    dummy_project_metrics = None
     dummy_macro_metrics = None
+    dummy_run_metadata = None
+
     if dummy_predictions_path.is_file():
         if not dummy_metadata_path.is_file():
             raise FileNotFoundError(
@@ -332,19 +396,8 @@ def generate_evaluation_workbook(
             low_memory=False,
         )
         _validate_predictions(dummy_predictions)
-        dummy_version_metrics = evaluate_predictions(dummy_predictions)
-        dummy_project_metrics = aggregate_project_metrics(
-            dummy_version_metrics
-        )
-        dummy_macro_metrics = calculate_macro_average(dummy_project_metrics)
-        if len(dummy_predictions) != len(predictions):
-            raise ValueError(
-                "Dummy predictions must cover the same number of observations as Random Forest."
-            )
-        if set(dummy_predictions["Project"].unique()) != set(predictions["Project"].unique()):
-            raise ValueError(
-                "Dummy predictions must cover the same held-out projects as Random Forest."
-            )
+        validate_prediction_alignment(predictions, dummy_predictions)
+
         if (
             dummy_run_metadata.get("model", {}).get("name")
             != "DummyClassifier"
@@ -355,10 +408,18 @@ def generate_evaluation_workbook(
                 "Dummy metadata must identify DummyClassifier with strategy='most_frequent'."
             )
 
+        dummy_version_metrics = evaluate_predictions(dummy_predictions)
+        dummy_project_metrics = aggregate_project_metrics(
+            dummy_version_metrics
+        )
+        dummy_macro_metrics = calculate_macro_average(dummy_project_metrics)
+
     version_metrics = version_metrics.reindex(columns=VERSION_COLUMNS)
     project_metrics = project_metrics.reindex(columns=PROJECT_COLUMNS)
     comparison = _build_model_comparison(
+        project_metrics,
         macro_metrics,
+        dummy_project_metrics,
         dummy_macro_metrics,
     )
     run_notes = _build_run_notes(
@@ -366,7 +427,7 @@ def generate_evaluation_workbook(
         version_metrics,
         project_metrics,
         macro_metrics,
-        dummy_available=dummy_macro_metrics is not None,
+        dummy_metadata=dummy_run_metadata,
     )
 
     if output_path is None:
