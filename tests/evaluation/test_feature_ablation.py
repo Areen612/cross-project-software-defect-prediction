@@ -139,3 +139,35 @@ def test_run_rejects_reference_without_predictions(tmp_path):
     (run_dir / "metadata.json").write_text("{}", encoding="utf-8")
     with pytest.raises(FileNotFoundError):
         run_feature_ablation(run_dir)
+
+
+def test_run_does_not_overwrite_existing_ablation_output(tmp_path, monkeypatch):
+    from src.evaluation import feature_ablation as module
+
+    X, y, metadata = _tiny_data()
+    raw = pd.DataFrame({
+        "bugs": y.astype(int),
+        "Project": metadata["Project"],
+        "Version": metadata["Version"],
+        "Class": metadata["Class"],
+    })
+    from src.config import FEATURES
+    for index, feature in enumerate(FEATURES):
+        raw[feature] = X["loc"].to_numpy() + index
+    monkeypatch.setattr(module, "load_dataset", lambda: raw.copy())
+    monkeypatch.setattr(module, "validate_dataset", lambda frame: None)
+
+    run_dir = tmp_path / "rf_run"
+    run_dir.mkdir()
+    reference = metadata.copy()
+    reference["Actual"] = y
+    reference["Predicted"] = y
+    reference.to_csv(run_dir / "predictions.csv", index=False)
+    (run_dir / "metadata.json").write_text("{}", encoding="utf-8")
+    existing = run_dir / "feature_ablation"
+    existing.mkdir()
+    (existing / "keep.txt").write_text("preserve", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        run_feature_ablation(run_dir, configurations={"baseline": []})
+    assert (existing / "keep.txt").read_text() == "preserve"
