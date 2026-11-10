@@ -25,7 +25,7 @@ def _data():
         index=[10, 20, 30, 40, 50, 60],
     )
     y = pd.Series(
-        [True, False, True, False, True, False],
+        [True, True, True, False, False, True],
         index=X.index,
         name="buggy",
     )
@@ -110,3 +110,20 @@ def test_dummy_classifier_learns_majority_class_from_training_labels():
         np.array([3, 5]),
     )
     assert result["predictions"].tolist() == [True, True]
+
+
+
+def test_dummy_classifier_uses_false_class_when_training_labels_are_tied():
+    X, y, metadata = _data()
+    # Projects B and C contain two positives and two negatives in total.
+    # sklearn's most_frequent strategy selects False for this tie.
+    result = train_dummy_fold(
+        X,
+        y,
+        metadata,
+        "A",
+        np.array([2, 3, 4, 5]),
+        np.array([0, 1]),
+    )
+
+    assert result["predictions"].tolist() == [False, False]
