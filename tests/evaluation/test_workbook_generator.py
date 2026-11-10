@@ -218,3 +218,42 @@ def test_generator_does_not_modify_source_predictions(run_directory):
     generate_evaluation_workbook(run_directory)
 
     assert predictions_path.read_bytes() == original
+
+
+
+def test_generator_includes_dummy_metrics_when_baseline_predictions_exist(run_directory):
+    dummy_dir = run_directory / "dummy_baseline"
+    dummy_dir.mkdir()
+
+    dummy_predictions = pd.DataFrame(
+        {
+            "Project": ["project_A"] * 4 + ["project_B"] * 4,
+            "Version": ["1.0", "1.0", "1.1", "1.1", "2.0", "2.0", "2.1", "2.1"],
+            "Class": [f"Class{i}" for i in range(8)],
+            "Actual": [True, False, True, False, False, True, False, True],
+            "Predicted": [True] * 8,
+        }
+    )
+    dummy_predictions.to_csv(dummy_dir / "predictions.csv", index=False)
+
+    output_path = generate_evaluation_workbook(run_directory)
+    workbook = load_workbook(output_path, data_only=True, read_only=True)
+
+    rows = list(workbook["Model Comparison"].iter_rows(values_only=True))
+    headers = rows[0]
+    model_index = headers.index("Model")
+    metric_index = headers.index("Metric")
+    status_index = headers.index("Status")
+
+    dummy_rows = [
+        row for row in rows[1:]
+        if row[model_index] == "Dummy (most_frequent)"
+    ]
+    assert len(dummy_rows) == 10
+    assert all(row[status_index] != "Pending" for row in dummy_rows)
+    assert any(row[metric_index] == "Accuracy" for row in dummy_rows)
+
+    notes = list(workbook["Run Notes"].iter_rows(values_only=True))
+    notes_dict = {row[0]: row[1] for row in notes[1:]}
+    assert notes_dict["Dummy baseline"] == "Evaluated using the same LOPO protocol."
+    workbook.close()
