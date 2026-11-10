@@ -25,6 +25,22 @@ def _actual_label(value: object) -> bool:
     raise ValueError(f"Actual labels must be boolean or binary 0/1; got {value!r}.")
 
 
+def _normalize_identifier(value: object) -> str:
+    """Normalize CSV-inferred numeric identifiers and string identifiers.
+
+    CSV readers may infer a value such as version "1" as integer 1.
+    Normalize integral numeric values to the same representation without
+    altering non-integral numeric IDs or ordinary strings.
+    """
+    if pd.isna(value):
+        return "<MISSING>"
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, (int, float)) and float(value).is_integer():
+        return str(int(value))
+    return str(value)
+
+
 def _observation_signatures(predictions: pd.DataFrame) -> Counter:
     missing = set(_ALIGNMENT_COLUMNS) - set(predictions.columns)
     if missing:
@@ -37,9 +53,9 @@ def _observation_signatures(predictions: pd.DataFrame) -> Counter:
         _ALIGNMENT_COLUMNS
     ].itertuples(index=False, name=None):
         signature = (
-            "<MISSING>" if pd.isna(project) else str(project),
-            "<MISSING>" if pd.isna(version) else str(version),
-            "<MISSING>" if pd.isna(class_name) else str(class_name),
+            _normalize_identifier(project),
+            _normalize_identifier(version),
+            _normalize_identifier(class_name),
             _actual_label(actual),
         )
         signatures.append(signature)
