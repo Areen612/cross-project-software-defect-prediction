@@ -392,6 +392,29 @@ The feature-ablation analysis generates:
 
 It also stores separate result directories for each ablation configuration, including predictions, metrics, and configuration metadata.
 
+## Visualizations
+
+The read-only visualization module creates figures from the saved evaluation workbook, experiment CSV/JSON files, the configured dataset, and quantified findings in the investigation report. It does not train models, rerun evaluation, or change source artifacts. Missing or invalid inputs are reported and skipped.
+
+Generate all available figures:
+
+```bash
+uv run python -m src.visualization.cli \
+  --experiment-dir outputs/lopo_run_20261109_103355_224454
+```
+
+Generate one category, choose another figure directory, or export PNG and SVG:
+
+```bash
+uv run python -m src.visualization.cli \
+  --experiment-dir outputs/lopo_run_20261109_103355_224454 \
+  --category ablation \
+  --output-dir outputs/figures \
+  --format both
+```
+
+Categories are `performance`, `projects`, `robustness`, `ablation`, `dataset`, and `investigation`. Figures are saved under `outputs/figures/<category>/` by default. The command prints generated paths and explains skipped figures.
+
 ## Testing
 
 The project uses pytest for automated testing.
@@ -422,6 +445,8 @@ The goal is to better understand the dataset and evaluate the reliability of the
 - Python
 - pandas
 - NumPy
+- matplotlib
+- seaborn
 - scikit-learn
 - pytest
 - uv
