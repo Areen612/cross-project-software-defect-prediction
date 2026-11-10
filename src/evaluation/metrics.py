@@ -1,3 +1,4 @@
+
 import math
 
 import pandas as pd
@@ -59,6 +60,39 @@ VERSION_METRICS = [
     "F1",
 ]
 
+VALID_MCC_STATUSES = {
+    "Informative",
+    "Not informative",
+    "Undefined",
+}
+
+
+def _get_mcc_status(
+    y_true: pd.Series,
+    y_pred: pd.Series,
+) -> str:
+    """
+    Determine whether MCC is informative or mathematically undefined.
+
+    Returns:
+        Not informative:
+            Actual labels contain only one class.
+
+        Undefined:
+            Actual labels contain both classes, but predicted
+            labels contain only one class.
+
+        Informative:
+            Both actual and predicted labels contain both classes.
+    """
+    if y_true.nunique() < 2:
+        return "Not informative"
+
+    if y_pred.nunique() < 2:
+        return "Undefined"
+
+    return "Informative"
+
 
 def _calculate_pooled_mcc(
     tn: int,
@@ -87,6 +121,28 @@ def _calculate_pooled_mcc(
     return numerator / denominator
 
 
+def _get_pooled_mcc_status(row: pd.Series) -> str:
+    """
+    Determine the MCC status from combined project-level counts.
+
+    Actual class counts are checked first, followed by predicted
+    class counts.
+    """
+    if (
+        row["Buggy_Count"] == 0
+        or row["Non_Buggy_Count"] == 0
+    ):
+        return "Not informative"
+
+    if (
+        row["TP"] + row["FP"] == 0
+        or row["TN"] + row["FN"] == 0
+    ):
+        return "Undefined"
+
+    return "Informative"
+
+
 def evaluate_predictions(
     predictions_dataframe: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -96,8 +152,8 @@ def evaluate_predictions(
     Missing versions are retained as separate groups.
 
     Parameters:
-        predictions_dataframe: DataFrame containing Project, Version,
-            Actual, and Predicted columns.
+        predictions_dataframe:
+            DataFrame containing Project, Version, Actual, and Predicted.
 
     Returns:
         DataFrame containing one row per Project-Version group,
@@ -111,6 +167,7 @@ def evaluate_predictions(
     missing_columns = VERSION_INPUT_COLUMNS - set(
         predictions_dataframe.columns
     )
+
     if missing_columns:
         raise ValueError(
             f"Input DataFrame is missing required columns: "
@@ -152,10 +209,7 @@ def evaluate_predictions(
             labels=[False, True],
         ).ravel()
 
-        if y_true.nunique() < 2:
-            mcc_status = "Not informative"
-        else:
-            mcc_status = "Informative"
+        mcc_status = _get_mcc_status(y_true, y_pred)
 
         evaluation_results.append({
             "Project": project,
@@ -209,12 +263,13 @@ def aggregate_project_metrics(
     Counts are summed across versions.
 
     Parameters:
-        version_metrics_dataframe: DataFrame containing one row per
-            Project-Version group and its evaluation metrics.
+        version_metrics_dataframe:
+            DataFrame containing one row per Project-Version group
+            and its evaluation metrics.
 
     Returns:
         DataFrame containing one row per project, with unweighted
-        metrics, weighted metrics, pooled MCC, and total counts.
+        metrics, weighted metrics, pooled MCC, statuses, and counts.
     """
     if version_metrics_dataframe.empty:
         raise ValueError(
@@ -224,6 +279,7 @@ def aggregate_project_metrics(
     missing_columns = AGGREGATION_INPUT_COLUMNS - set(
         version_metrics_dataframe.columns
     )
+
     if missing_columns:
         raise ValueError(
             f"Input DataFrame is missing required columns: "
@@ -252,6 +308,7 @@ def aggregate_project_metrics(
             version_metrics_dataframe[column]
         )
     ]
+
     if non_numeric_columns:
         raise ValueError(
             f"Metric columns must be numeric: {non_numeric_columns}"
@@ -260,24 +317,22 @@ def aggregate_project_metrics(
     if (version_metrics_dataframe["Support"] <= 0).any():
         raise ValueError("Support must be greater than zero.")
 
-    valid_mcc_statuses = {"Informative", "Not informative"}
-
     if not version_metrics_dataframe["MCC_Status"].isin(
-        valid_mcc_statuses
+        VALID_MCC_STATUSES
     ).all():
         raise ValueError(
-            "MCC_Status must contain only 'Informative' "
-            "or 'Not informative'."
+            "MCC_Status must contain only 'Informative', "
+            "'Not informative', or 'Undefined'."
         )
 
     working_dataframe = version_metrics_dataframe.copy()
 
-    # Exclude non-informative MCC values from the unweighted mean.
+    # Exclude non-informative and undefined MCC values from the mean.
     working_dataframe["MCC"] = working_dataframe["MCC"].where(
         working_dataframe["MCC_Status"] == "Informative"
     )
 
-    # Count the number of versions contributing to the MCC mean.
+    # Count only versions that contribute to the mean MCC.
     working_dataframe["MCC_Informative_Flag"] = (
         working_dataframe["MCC_Status"] == "Informative"
     )
@@ -359,15 +414,10 @@ def aggregate_project_metrics(
         )
     )
 
-    # Flag pooled MCC when the combined actual labels contain one class.
+    # Determine pooled MCC status from combined actual and predicted counts.
     project_metrics_dataframe["Pooled_MCC_Status"] = (
         project_metrics_dataframe.apply(
-            lambda row: (
-                "Not informative"
-                if row["Buggy_Count"] == 0
-                or row["Non_Buggy_Count"] == 0
-                else "Informative"
-            ),
+            _get_pooled_mcc_status,
             axis=1,
         )
     )
