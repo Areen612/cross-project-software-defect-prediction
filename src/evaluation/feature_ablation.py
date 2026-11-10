@@ -1,7 +1,6 @@
 """Feature-ablation experiments using the unchanged project-level LOPO protocol."""
 from __future__ import annotations
 
-import hashlib
 import json
 import time
 from datetime import datetime
@@ -18,7 +17,6 @@ from src.data.target_builder import target_builder
 from src.data.data_preparation import prepare_modeling_data
 from src.evaluation.lopo import generate_lopo_splits
 from src.evaluation.metrics import evaluate_predictions, aggregate_project_metrics, calculate_macro_average
-from src.evaluation.result_saver import save_experiment_metadata
 from src.models.fold_trainer import train_fold
 
 ABLATION_CONFIGURATIONS = {
@@ -74,6 +72,10 @@ def _build_ablation_predictions(
     predictions = predictions[["Project", "Version", "Class", "Actual", "Predicted"]]
     if len(predictions) != len(X) or predictions[["Actual", "Predicted"]].isna().any().any():
         raise RuntimeError("Ablation prediction coverage or label validation failed.")
+    from src.evaluation.prediction_alignment import validate_prediction_alignment
+    expected = metadata[["Project", "Version", "Class"]].copy()
+    expected["Actual"] = y.to_numpy()
+    validate_prediction_alignment(expected, predictions)
     return predictions, results, runtime_seconds
 
 
@@ -139,6 +141,8 @@ def run_feature_ablation(
         predictions, folds, runtime_seconds = _build_ablation_predictions(
             X, y, metadata, removed
         )
+        from src.evaluation.prediction_alignment import validate_prediction_alignment
+        validate_prediction_alignment(reference, predictions)
         version, project, macro = _evaluate_variant(predictions)
         variant_dir = root / name
         variant_dir.mkdir(parents=True, exist_ok=True)
