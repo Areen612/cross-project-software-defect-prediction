@@ -90,6 +90,7 @@ def summarize_project_robustness(project_metrics: pd.DataFrame) -> pd.DataFrame:
             values = pd.to_numeric(data[metric], errors="coerce").dropna()
             rows.append({
                 "Model": model,
+                "Aggregation_Level": "Project-pooled macro average",
                 "Metric": metric,
                 "Projects_Total": total,
                 "Projects_With_Both_Classes": both_classes,
@@ -149,9 +150,12 @@ def generate_robustness_analysis(
     )
     notes = [
         "Diagnostics use saved out-of-project predictions; no models are retrained.",
-        "Project metrics pool all versions within each held-out project.",
+        "Project metrics pool raw predictions across versions within each held-out project.",
         "Version metrics retain missing Version values as a separate group.",
-        "Summary statistics give each project one contribution per metric.",
+        "robustness_summary.csv Mean is the equal-project macro average of project-pooled metrics.",
+        "The workbook Project Summary instead averages version-level metrics within each project.",
+        "The workbook Project Pooled sheet reports pooled project metrics and their equal-project macro average.",
+        "No dataset-wide pooled metric across all held-out projects is reported.",
         "Recall is buggy-class recall; specificity is non-buggy-class recall.",
         "Balanced accuracy is undefined when the actual group has one class.",
         "MCC is undefined when the actual or predicted labels contain one class.",
