@@ -267,7 +267,9 @@ def test_generator_includes_dummy_metrics_when_baseline_predictions_exist(run_di
 
     notes = list(workbook["Run Notes"].iter_rows(values_only=True))
     notes_dict = {row[0]: row[1] for row in notes[1:]}
-    assert notes_dict["Dummy baseline"] == "Evaluated using the same LOPO protocol."
+    assert notes_dict["Dummy baseline"] == (
+        "Evaluated using the same LOPO protocol and observation set."
+    )
     workbook.close()
 
 
