@@ -235,6 +235,15 @@ def test_generator_includes_dummy_metrics_when_baseline_predictions_exist(run_di
         }
     )
     dummy_predictions.to_csv(dummy_dir / "predictions.csv", index=False)
+    dummy_metadata = {
+        "model": {
+            "name": "DummyClassifier",
+            "strategy": "most_frequent",
+        }
+    }
+    (dummy_dir / "metadata.json").write_text(
+        json.dumps(dummy_metadata), encoding="utf-8"
+    )
 
     output_path = generate_evaluation_workbook(run_directory)
     workbook = load_workbook(output_path, data_only=True, read_only=True)
