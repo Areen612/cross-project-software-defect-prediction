@@ -87,3 +87,16 @@ def test_dummy_lopo_runner_creates_one_fold_per_project():
 
     assert len(predicted_indices) == len(X)
     assert len(set(predicted_indices)) == len(X)
+
+
+
+def test_dummy_classifier_learns_majority_class_from_training_labels():
+    X, y, metadata = _data()
+    # Training labels have three positives and one negative, so the held-out
+    # project must be predicted entirely buggy.
+    result = train_dummy_fold(
+        X, y, metadata, "C",
+        np.array([0, 1, 2, 4]),
+        np.array([3, 5]),
+    )
+    assert result["predictions"].tolist() == [True, True]
