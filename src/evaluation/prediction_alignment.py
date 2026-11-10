@@ -26,18 +26,20 @@ def _actual_label(value: object) -> bool:
 
 
 def _normalize_identifier(value: object) -> str:
-    """Normalize CSV-inferred numeric identifiers and string identifiers.
+    """Normalize numeric identifier representations without conflating labels.
 
-    CSV readers may infer a value such as version "1" as integer 1.
-    Normalize integral numeric values to the same representation without
-    altering non-integral numeric IDs or ordinary strings.
+    CSV inference may turn string "1" into integer 1. Treat integral numeric
+    values equivalently, but keep decimal strings such as "1.0" distinct from
+    the version label "1" unless the source represented them numerically.
     """
     if pd.isna(value):
         return "<MISSING>"
     if isinstance(value, bool):
         return str(value)
-    if isinstance(value, (int, float)) and float(value).is_integer():
-        return str(int(value))
+    if isinstance(value, (int, float)):
+        if float(value).is_integer():
+            return str(int(value))
+        return format(float(value), ".15g")
     return str(value)
 
 
