@@ -121,92 +121,40 @@ Because the dataset is imbalanced, accuracy and F1-score are interpreted alongsi
 
 ### Evaluation levels
 
-The project uses two complementary evaluation perspectives. They are calculated from the same saved out-of-project predictions, but answer different questions.
+The project reports two complementary aggregation paths from the same saved out-of-project predictions.
 
 #### 1. Project-version level — detailed evaluation
 
-Predictions are grouped by `Project` and `Version`.
+Predictions are grouped by `Project` and `Version`. Metrics, support, class counts, and confusion-matrix counts are calculated for each group. Missing version labels are retained as a separate group.
 
-For every project-version group, the evaluation calculates:
+#### 2. Project Summary — mean across versions
 
-- Accuracy
-- Precision
-- Recall
-- F1-score
-- MCC
-- Support
-- Buggy and non-buggy counts
-- TN, FP, FN, and TP
+For each project, Accuracy, Precision, Recall, and F1 are calculated for each version and then averaged equally across that project's versions. MCC is averaged across informative version groups only. This is a mean of version-level scores, not a metric calculated over all project observations pooled together. Support-weighted version means are retained as supplementary fields.
 
-This is the detailed evaluation level. It shows how performance varies between versions belonging to the same held-out project.
+#### 3. Project Pooled — supplementary evaluation
 
-Missing version labels are retained as a separate group rather than discarded.
-
-#### 2. Project level — pooled supplementary evaluation
-
-For the supplementary project-level pooled perspective, all predictions belonging to a held-out project are combined across its versions.
-
-The classification metrics are then calculated once from the combined predictions for that project.
-
-For example, if a held-out project contains three versions, the predictions from all three versions are combined before calculating the project's pooled Accuracy, F1-score, or MCC.
-
-This perspective answers a different question from averaging version-level scores: it evaluates the model over all observations belonging to a project as one combined group.
+For each project, predictions from all of its versions are combined first. Accuracy, Precision, Recall, F1, MCC, and confusion-matrix counts are then calculated once from those pooled predictions. This is distinct from the Project Summary mean across versions.
 
 ### Macro-averages across projects
 
-Both evaluation perspectives can be summarized using macro-averages across projects.
+Both project-level paths have their own macro average:
 
-- **Project-version perspective:** Calculate the selected metrics for each project-version group, average the version metrics within each project, and then average the project summaries across projects. Each project contributes equally to the final macro-average.
-- **Project-pooled perspective:** Calculate metrics from predictions pooled within each project, then average the resulting project-level metrics across projects. Each project contributes equally to the final macro-average.
+- **Project-version-derived macro average:** average the project summaries from `Project Summary`, giving each project equal weight.
+- **Project-pooled macro average:** average the metrics in `Project Pooled`, giving each project equal weight.
 
-The two macro-averages must be labelled separately. They are not interchangeable because they use different calculations within each project.
-
-For MCC, only informative groups contribute to the corresponding mean. Groups where MCC is not informative or undefined must not be treated as ordinary zero-valued results.
+The workbook labels these paths separately. MCC averages exclude non-informative or undefined groups; such groups are not treated as ordinary zero-valued MCC results. Dataset-wide pooled metrics across all 39 held-out projects are out of scope and are not reported.
 
 ### Workbook aggregation details
 
-The current evaluation workbook provides the following calculations:
-
-| Workbook output | Calculation |
+| Workbook sheet | Calculation |
 |---|---|
 | `Version Metrics` | Metrics calculated separately for each project-version group. |
-| `Project Summary` | Unweighted mean of version metrics within each project, plus supplementary support-weighted metrics and project-level pooled MCC. |
-| `Model Comparison` | Project-level and macro-level comparisons between the Random Forest and Dummy baseline. |
-| `Run Notes` | Experiment metadata and aggregation descriptions. |
+| `Project Summary` | Unweighted mean of version metrics within each project, plus supplementary support-weighted version means. |
+| `Project Pooled` | Metrics calculated from raw predictions pooled across versions within each project, plus an equal-project macro average. |
+| `Model Comparison` | Primary project-version-derived macro comparison. |
+| `Run Notes` | Metadata and explicit descriptions of both aggregation paths. |
 
-The workbook's support-weighted metrics are calculated by weighting each version's metric value by its number of observations.
-
-The workbook's `Pooled_MCC` is calculated separately for each project by summing its version-level confusion-matrix counts and then calculating MCC.
-
-The macro `Pooled_MCC` is the mean of informative project-level pooled MCC values, with each informative project contributing equally.
-
-**Important:** The workbook does not currently contain a single dataset-wide pooled MCC calculated from all held-out predictions.
-
-### Robustness analysis aggregation details
-
-The robustness analysis independently evaluates the saved Random Forest and Dummy baseline predictions without retraining either model.
-
-It produces:
-
-- `project_robustness.csv`: metrics calculated from predictions pooled across versions within each project.
-- `version_robustness.csv`: metrics calculated separately for each project-version group.
-- `robustness_summary.csv`: descriptive statistics summarizing the project-level metric distributions.
-- `README.txt`: notes describing the robustness calculations.
-
-The project-level robustness summary reports the mean, median, standard deviation, minimum, quartiles, and maximum across projects for each metric.
-
-Its project-level means are therefore macro-averages of project-pooled metrics.
-
-### Aggregation consistency note
-
-The workbook and robustness analysis use the same saved predictions but implement different project-level aggregation approaches:
-
-- The workbook's primary project summary averages version-level metric values within each project.
-- The robustness analysis pools the predictions across versions within each project before calculating project-level metrics.
-
-Both approaches are useful, but their results must be clearly distinguished.
-
-The experiment protocol currently describes an additional dataset-wide pooled evaluation. That calculation is not currently represented as a dataset-wide pooled result in the workbook. The protocol and workbook therefore require a corresponding alignment update before the reporting methodology can be considered fully consistent.
+The workbook and robustness analysis distinguish the two paths explicitly. The robustness analysis's project metrics pool predictions across versions within each project, and its mean across project metrics is a macro-average of project-pooled metrics.
 
 ## Additional analyses
 
