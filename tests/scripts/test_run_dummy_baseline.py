@@ -49,3 +49,18 @@ def test_reference_validation_rejects_changed_observation_count(tmp_path):
 
     with pytest.raises(ValueError, match="observation count"):
         _validate_rf_reference(run_dir, X, y, metadata)
+
+
+
+def test_reference_validation_normalizes_numeric_version_inference(tmp_path):
+    X, y, metadata, saved_rf = _reference_data()
+    run_dir = tmp_path / "rf_run"
+    run_dir.mkdir()
+
+    saved_rf["Version"] = ["1.0", "1", "2.0"]
+    saved_rf.to_csv(run_dir / "predictions.csv", index=False)
+    (run_dir / "metadata.json").write_text("{}", encoding="utf-8")
+
+    # The expected metadata still represents integral "1" as a string.
+    metadata["Version"] = ["1.0", "1", "2.0"]
+    _validate_rf_reference(run_dir, X, y, metadata)
