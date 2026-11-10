@@ -64,6 +64,8 @@ def _build_ablation_predictions(
     selected_features = [feature for feature in X.columns if feature not in removed_features]
     if not selected_features:
         raise ValueError("Ablation configuration leaves no predictors.")
+    if set(X.columns) != set(FEATURES):
+        raise ValueError("Input predictors must match the configured 18-feature set.")
     X_variant = X.loc[:, selected_features].copy()
     started = time.perf_counter()
     results = []
@@ -148,6 +150,12 @@ def run_feature_ablation(
         },
         "preprocessing": "Median imputation fitted independently on each training fold.",
         "aggregation": "Version metrics averaged within project; macro metrics equally weight projects.",
+        "ablation_rationale": {
+            "without_loc": "Tests the strongest individual feature association.",
+            "without_noc": "Tests the second-strongest individual feature association.",
+            "without_loc_noc": "Tests the joint contribution of the two strongest individual associations.",
+            "without_top_association_features": "Tests the combined contribution of loc, noc, ca, and ce, selected from the descriptive univariate analysis.",
+        },
         "configurations": {},
     }
 
@@ -186,6 +194,7 @@ def run_feature_ablation(
         run_manifest["configurations"][name] = {
             "removed_features": removed,
             "retained_features": [f for f in FEATURES if f not in removed],
+            "number_of_features": len(FEATURES) - len(removed),
             "runtime_seconds": runtime_seconds,
             "predictions": len(predictions),
             "folds": len(folds),
