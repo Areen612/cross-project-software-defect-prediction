@@ -564,3 +564,88 @@ def calculate_macro_average(
     )
 
     return pd.DataFrame([macro_results])
+
+def calculate_project_pooled_metrics(
+    predictions_dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Calculate metrics after pooling all versions within each project.
+
+    This is distinct from aggregate_project_metrics(), which averages
+    metrics across Project-Version groups. One row is returned per project.
+    """
+    required = {"Project", "Actual", "Predicted"}
+    missing = required - set(predictions_dataframe.columns)
+    if predictions_dataframe.empty:
+        raise ValueError("Input DataFrame is empty. Cannot pool project metrics.")
+    if missing:
+        raise ValueError(
+            f"Input DataFrame is missing required columns: {sorted(missing)}"
+        )
+    if predictions_dataframe[["Project", "Actual", "Predicted"]].isnull().any().any():
+        raise ValueError("Project, Actual, and Predicted cannot contain missing values.")
+    for column in ("Actual", "Predicted"):
+        if not pd.api.types.is_bool_dtype(predictions_dataframe[column]):
+            raise ValueError(f"Column '{column}' must have boolean dtype.")
+
+    rows = []
+    for project, group in predictions_dataframe.groupby(
+        "Project", sort=False, dropna=False
+    ):
+        actual = group["Actual"]
+        predicted = group["Predicted"]
+        tn, fp, fn, tp = confusion_matrix(
+            actual, predicted, labels=[False, True]
+        ).ravel()
+        status = _get_mcc_status(actual, predicted)
+        rows.append({
+            "Project": project,
+            "Support": len(group),
+            "Buggy_Count": int(actual.sum()),
+            "Non_Buggy_Count": int((~actual).sum()),
+            "Accuracy": accuracy_score(actual, predicted),
+            "Precision": precision_score(actual, predicted, zero_division=0),
+            "Recall": recall_score(actual, predicted, zero_division=0),
+            "F1": f1_score(actual, predicted, zero_division=0),
+            "MCC": matthews_corrcoef(actual, predicted) if status == "Informative" else 0.0,
+            "MCC_Status": status,
+            "TN": int(tn),
+            "FP": int(fp),
+            "FN": int(fn),
+            "TP": int(tp),
+        })
+    return pd.DataFrame(rows)
+
+
+def calculate_project_pooled_macro_average(
+    project_metrics_dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    """Macro-average pooled project metrics, giving each project equal weight."""
+    required = {
+        "Project", "Accuracy", "Precision", "Recall", "F1", "MCC_Status"
+    }
+    missing = required - set(project_metrics_dataframe.columns)
+    if project_metrics_dataframe.empty:
+        raise ValueError("Input DataFrame is empty. Cannot calculate pooled macro average.")
+    if missing:
+        raise ValueError(
+            f"Input DataFrame is missing required columns: {sorted(missing)}"
+        )
+    if project_metrics_dataframe["Project"].isnull().any():
+        raise ValueError("Project cannot contain missing values.")
+    if project_metrics_dataframe["Project"].duplicated().any():
+        raise ValueError("Input DataFrame must contain one row per project.")
+    if not project_metrics_dataframe["MCC_Status"].isin(VALID_MCC_STATUSES).all():
+        raise ValueError("MCC_Status contains an invalid value.")
+
+    metrics = ["Accuracy", "Precision", "Recall", "F1"]
+    result = {"Project_Count": len(project_metrics_dataframe)}
+    for metric in metrics:
+        result[metric] = project_metrics_dataframe[metric].mean()
+
+    informative = project_metrics_dataframe[
+        project_metrics_dataframe["MCC_Status"] == "Informative"
+    ]
+    result["MCC"] = informative["MCC"].mean()
+    result["MCC_Informative_Projects"] = len(informative)
+    return pd.DataFrame([result])

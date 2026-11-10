@@ -15,6 +15,8 @@ from src.evaluation.metrics import (
     evaluate_predictions,
     aggregate_project_metrics,
     calculate_macro_average,
+    calculate_project_pooled_metrics,
+    calculate_project_pooled_macro_average,
 )
 from src.evaluation.prediction_alignment import validate_prediction_alignment
 
@@ -22,6 +24,7 @@ from src.evaluation.prediction_alignment import validate_prediction_alignment
 SHEET_NAMES = [
     "Version Metrics",
     "Project Summary",
+    "Project Pooled",
     "Model Comparison",
     "Run Notes",
 ]
@@ -115,6 +118,78 @@ def _metric_status(row: pd.Series, source_metric: str) -> tuple[str, str]:
             return "No informative groups", f"Pooled MCC status: {status}."
         return "Available", "Calculated from the project's combined confusion counts."
     return "Available", "Calculated at project level."
+
+
+def _build_project_pooled_sheet(
+    rf_metrics: pd.DataFrame,
+    dummy_metrics: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Create per-project pooled rows and equal-project macro rows."""
+    rows: list[dict[str, Any]] = []
+    models = [
+        ("Random Forest", rf_metrics),
+        ("Dummy (most_frequent)", dummy_metrics),
+    ]
+    for model_name, metrics in models:
+        source = rf_metrics if metrics is None else metrics
+        if metrics is None:
+            for project in source["Project"]:
+                rows.append({
+                    "Model": model_name,
+                    "Evaluation_Level": "Project pooled",
+                    "Project": project,
+                    "Support": None,
+                    "Accuracy": None,
+                    "Precision": None,
+                    "Recall": None,
+                    "F1": None,
+                    "MCC": None,
+                    "MCC_Status": "Pending",
+                    "TN": None, "FP": None, "FN": None, "TP": None,
+                })
+            rows.append({
+                "Model": model_name,
+                "Evaluation_Level": "Project-pooled macro average",
+                "Project": None,
+                "Support": None,
+                "Accuracy": None, "Precision": None, "Recall": None,
+                "F1": None, "MCC": None, "MCC_Status": "Pending",
+                "TN": None, "FP": None, "FN": None, "TP": None,
+            })
+            continue
+
+        for _, item in metrics.iterrows():
+            rows.append({
+                "Model": model_name,
+                "Evaluation_Level": "Project pooled",
+                "Project": item["Project"],
+                "Support": int(item["Support"]),
+                "Accuracy": item["Accuracy"],
+                "Precision": item["Precision"],
+                "Recall": item["Recall"],
+                "F1": item["F1"],
+                "MCC": item["MCC"] if item["MCC_Status"] == "Informative" else None,
+                "MCC_Status": item["MCC_Status"],
+                "TN": int(item["TN"]), "FP": int(item["FP"]),
+                "FN": int(item["FN"]), "TP": int(item["TP"]),
+            })
+        macro = calculate_project_pooled_macro_average(metrics).iloc[0]
+        rows.append({
+            "Model": model_name,
+            "Evaluation_Level": "Project-pooled macro average",
+            "Project": None,
+            "Support": None,
+            "Accuracy": macro["Accuracy"],
+            "Precision": macro["Precision"],
+            "Recall": macro["Recall"],
+            "F1": macro["F1"],
+            "MCC": macro["MCC"],
+            "MCC_Status": (
+                f"{int(macro['MCC_Informative_Projects'])} informative projects"
+            ),
+            "TN": None, "FP": None, "FN": None, "TP": None,
+        })
+    return pd.DataFrame(rows)
 
 
 def _build_model_comparison(
@@ -252,24 +327,24 @@ def _build_run_notes(
             "Metrics are calculated separately for each Project-Version pair; missing versions are retained.",
         ),
         (
-            "Project-level primary metrics",
-            "Unweighted mean across versions; each version contributes equally.",
+            "Project Summary aggregation",
+            "Unweighted mean across versions; each version contributes equally. This is not calculated by pooling observations.",
         ),
         (
-            "Project-level supplementary metrics",
-            "Support-weighted means across versions.",
+            "Project Pooled aggregation",
+            "Supplementary metrics are calculated directly from all predictions pooled within each project. Project-pooled macro averages give each project equal weight.",
         ),
         (
             "MCC handling",
             "MCC means exclude versions/projects without informative MCC; status columns distinguish non-informative and undefined cases.",
         ),
         (
-            "Pooled MCC",
-            "Calculated from summed confusion-matrix counts, not by averaging version-level MCC.",
+            "Project Summary pooled MCC field",
+            "The Pooled_MCC field is retained as a supplementary project-level value calculated from summed confusion counts. The separate Project Pooled sheet provides pooled Accuracy, Precision, Recall, F1, and MCC from raw predictions.",
         ),
         (
             "Macro averaging",
-            "Each project contributes equally (equal project weighting). MCC and pooled MCC include only informative projects.",
+            "Project-version-derived macro averages and project-pooled macro averages are separate calculations. Each project contributes equally to each macro average; MCC excludes non-informative or undefined projects.",
         ),
         (
             "Performance investigation",
@@ -381,6 +456,8 @@ def generate_evaluation_workbook(
     project_metrics = aggregate_project_metrics(version_metrics)
     macro_metrics = calculate_macro_average(project_metrics)
 
+    rf_pooled_metrics = calculate_project_pooled_metrics(predictions)
+    dummy_pooled_metrics = None
     dummy_project_metrics = None
     dummy_macro_metrics = None
     dummy_run_metadata = None
@@ -408,6 +485,7 @@ def generate_evaluation_workbook(
                 "Dummy metadata must identify DummyClassifier with strategy='most_frequent'."
             )
 
+        dummy_pooled_metrics = calculate_project_pooled_metrics(dummy_predictions)
         dummy_version_metrics = evaluate_predictions(dummy_predictions)
         dummy_project_metrics = aggregate_project_metrics(
             dummy_version_metrics
@@ -416,6 +494,10 @@ def generate_evaluation_workbook(
 
     version_metrics = version_metrics.reindex(columns=VERSION_COLUMNS)
     project_metrics = project_metrics.reindex(columns=PROJECT_COLUMNS)
+    project_pooled = _build_project_pooled_sheet(
+        rf_pooled_metrics,
+        dummy_pooled_metrics,
+    )
     comparison = _build_model_comparison(
         project_metrics,
         macro_metrics,
@@ -441,6 +523,7 @@ def generate_evaluation_workbook(
         sheets = [
             ("Version Metrics", version_metrics, "VersionMetrics"),
             ("Project Summary", project_metrics, "ProjectSummary"),
+            ("Project Pooled", project_pooled, "ProjectPooled"),
             ("Model Comparison", comparison, "ModelComparison"),
             ("Run Notes", run_notes, "RunNotes"),
         ]

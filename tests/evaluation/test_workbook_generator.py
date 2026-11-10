@@ -64,6 +64,7 @@ def test_generate_workbook_creates_expected_file_and_sheets(run_directory):
 
     workbook = load_workbook(output_path, read_only=True)
     assert workbook.sheetnames == SHEET_NAMES
+    assert "Project Pooled" in workbook.sheetnames
     workbook.close()
 
 
@@ -98,6 +99,32 @@ def test_project_summary_contains_aggregated_results(run_directory):
     workbook.close()
 
 
+
+
+def test_project_pooled_sheet_reports_project_and_macro_rows(run_directory):
+    output_path = generate_evaluation_workbook(run_directory)
+    workbook = load_workbook(output_path, data_only=True, read_only=True)
+    rows = list(workbook["Project Pooled"].iter_rows(values_only=True))
+    headers = rows[0]
+    level_index = headers.index("Evaluation_Level")
+    model_index = headers.index("Model")
+    project_rows = [row for row in rows[1:] if row[level_index] == "Project pooled"]
+    macro_rows = [
+        row for row in rows[1:]
+        if row[level_index] == "Project-pooled macro average"
+    ]
+    expected_models = {"Random Forest", "Dummy (most_frequent)"}
+    assert len(project_rows) == 4  # two projects for each of two models
+    assert len(macro_rows) == 2  # one macro row for each model
+    assert {row[model_index] for row in project_rows} == expected_models
+    assert {row[model_index] for row in macro_rows} == expected_models
+    assert all(
+        sum(row[model_index] == model for row in project_rows) == 2
+        for model in expected_models
+    )
+    workbook.close()
+
+
 def test_model_comparison_marks_dummy_baseline_pending(run_directory):
     output_path = generate_evaluation_workbook(run_directory)
 
@@ -127,8 +154,9 @@ def test_run_notes_include_model_dataset_and_methodology(run_directory):
     assert notes["Dataset"] == "ds.csv"
     assert notes["Target definition"] == "buggy = bugs > 0"
     assert notes["Imputation"] == "median"
-    assert "equal project weighting" in notes["Macro averaging"]
+    assert "Each project contributes equally" in notes["Macro averaging"]
     assert notes["Dummy baseline"].startswith("Not yet run")
+    assert "pooled within each project" in notes["Project Pooled aggregation"]
     workbook.close()
 
 
