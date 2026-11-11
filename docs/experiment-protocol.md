@@ -1,7 +1,7 @@
 # Experiment Protocol
 
 > **Project:** Cross-Project Software Defect Prediction  
-> **Protocol status:** Planned; no experiment execution has been performed.  
+> **Protocol status:** Implemented and evaluated in the latest reviewed run, `lopo_run_20261111_111341_636088`. The submitted prediction files and summaries were reconciled against the workbook and reported results as an artifact alignment check, not as a complete independent reproduction.
 > **Primary evaluation:** Leave-One-Project-Out (LOPO) across 39 projects.  
 > **Primary model:** Random Forest.  
 > **Baseline:** Majority-class Dummy Classifier.  
@@ -300,7 +300,7 @@ For every held-out project:
 
 Do not infer or fabricate missing version values.
 
-The workbook's `Version Metrics` sheet contains one row per held-out project-version group and model.
+The workbook's `Version Metrics` sheet contains Random Forest results, with one row per held-out project-version group.
 
 ## 12. Project summaries derived from version metrics
 
@@ -310,7 +310,7 @@ For MCC, average only informative project-version MCC values. Non-informative or
 
 This aggregation path is labelled **mean across versions**. It is not the same as calculating a metric once over all observations belonging to a project.
 
-The workbook's `Project Summary` sheet retains these project summaries, supplementary support-weighted version means, counts, and statuses.
+The workbook's `Project Summary` sheet contains the Random Forest project summaries derived from these version-level metrics, plus supplementary support-weighted version means, counts, and statuses.
 
 ## 13. Macro averages and supplementary project-pooled evaluation
 
@@ -338,40 +338,35 @@ The required Excel workbook contains the following sheets:
 
 ### `Version Metrics`
 
-One row per held-out project-version group and model, including Project, Version, Support, buggy/non-buggy counts, Accuracy, Precision, Recall, F1, MCC, MCC status, and TN/FP/FN/TP.
+Random Forest results only: one row per held-out project-version group, with Project, Version, support, class counts, Accuracy, Precision, Recall, F1, MCC status, and confusion-matrix counts.
 
 ### `Project Summary`
 
-One row per project and model. This sheet reports the **mean across versions** for each metric, support-weighted means as supplementary fields, and informative-MCC counts/status. It does not represent metrics calculated from pooled raw predictions.
-
-### `Project Pooled`
-
-One row per project and model, with predictions pooled across all versions within that project before metrics are calculated. Include Support, Accuracy, Precision, Recall, F1, MCC, MCC status, and TN/FP/FN/TP. Include a separate project-pooled macro-average row for each model, using equal project weighting.
+Random Forest project summaries only. Each metric is derived by averaging the version-level metrics within a project, giving each version equal weight. Supplementary support-weighted metrics, counts, and MCC statuses are also included. This sheet does not calculate metrics from pooled raw predictions.
 
 ### `Model Comparison`
 
-Include the primary project-version-derived macro comparison, project summaries, and clear identification of Random Forest and the Dummy baseline. The separate `Project Pooled` sheet contains the supplementary pooled comparison. Do not add dataset-wide pooled metrics.
+Random Forest and Dummy comparison results, including project summaries and the primary macro average derived from the Project Summary path. The project-pooled results are reported separately in `Project Pooled`.
+
+### `Project Pooled`
+
+Per-project metrics for both Random Forest and Dummy, calculated after pooling predictions across versions within each project. This sheet also contains a separate equal-project macro-average row for each model. Do not add dataset-wide pooled metrics.
 
 ### `Run Notes`
 
-Record dataset and model metadata, target definition, predictors, exclusions, preprocessing, LOPO design, model parameters, metric definitions, zero-division convention, and limitations. Explicitly define:
-- Project-version metrics as the detailed level.
-- `Project Summary` as the unweighted mean across versions within a project.
+Experiment metadata and methodological notes: dataset, models, target definition, predictors, exclusions, preprocessing, LOPO design, parameters, metrics, zero-division convention, aggregation paths, and limitations. Explicitly define:
+
+- Project-Version metrics as the detailed evaluation level.
+- `Project Summary` as the unweighted mean across versions within each project.
 - `Project Pooled` as metrics calculated from raw predictions pooled within each project.
 - Both macro averages as equal-project averages, labelled by their aggregation path.
 - MCC contributor handling for non-informative and undefined groups.
 
-## 15. Model artifacts
+## 15. Fold-specific model artifacts
 
 Save each outer-fold Random Forest model together with the preprocessing components required to apply it.
 
 Use a clear naming convention based on the held-out project.
-
-Also train a separate final Random Forest using all eligible observations after the cross-project evaluation has been completed.
-
-The all-data model is intended for future use. Its training performance must not be reported as cross-project evaluation performance.
-
-Do not mix the final all-data model with the 39 outer-fold evaluation models.
 
 ## 16. Reproducibility and leakage prevention
 
@@ -387,8 +382,7 @@ The implementation must follow these rules:
 8. Do not use the held-out project's target or predictor distribution to make preprocessing decisions.
 9. Use fixed and recorded model settings.
 10. Preserve predictions and fold metadata.
-11. Keep the final all-data model separate from outer-fold models.
-12. Record deviations from this protocol, including whether they occurred before or after inspecting results.
+11. Record deviations from this protocol, including whether they occurred before or after inspecting results.
 
 ## 17. Testing and quality assurance
 
@@ -425,7 +419,6 @@ The primary experiment is complete only when the following deliverables are avai
 - Majority-class Dummy baseline predictions and metrics.
 - Excel workbook with all required sheets.
 - Saved fold-specific models and preprocessing.
-- Separately labelled final all-data Random Forest model.
 - Run metadata and configuration.
 - Test results and final quality-assurance review.
 

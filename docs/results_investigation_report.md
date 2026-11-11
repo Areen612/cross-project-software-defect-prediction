@@ -92,7 +92,7 @@ The dataset contains:
 
 ## 6. Saved model results and Dummy baseline
 
-Both saved model outputs contain 110,917 predictions across 39 projects. Their observation counts match the source observations when compared as a multiset of `Project`, `Version`, `Class`, and actual label. The Dummy output predicts buggy for all 110,917 observations.
+In the latest reviewed run, `lopo_run_20261111_111341_636088`, both saved model outputs contain 110,917 predictions across 39 projects. Their observation counts match the source observations when compared as a multiset of `Project`, `Version`, `Class`, and actual label. The Dummy output predicts buggy for all 110,917 observations.
 
 The workbook reports these macro averages, where version metrics are averaged within each project and projects receive equal weight:
 
@@ -114,7 +114,7 @@ The saved Random Forest predictions have pooled confusion counts:
 | True positives (TP) | 102,158 |
 | **Total errors** | **68** |
 
-The workbook's 93 project-version rows' counts and numeric metrics match independent calculations from the saved predictions.
+The submitted Random Forest and Dummy prediction files, workbook summaries, robustness summary, and feature-ablation summaries were reconciled against the reported results during the latest artifact review. This was an alignment check against the submitted artifacts, not a complete independent reproduction of the experiment.
 
 **Interpretation and limitation:** Random Forest substantially outperforms the majority-class baseline on the reported macro metrics. However, the baseline comparison alone cannot establish that the model has learned robust cross-project patterns or rule out dataset-related effects.
 
@@ -135,9 +135,10 @@ The reviewed implementation:
 
 - Saved predictions contain no stable source-row identifier, only `Project`, `Version`, `Class`, `Actual`, and `Predicted`. Those keys can repeat, so saved output cannot uniquely identify every repeated source row.
 - The alignment check compares identifiers and actual labels, not predictor values.
-- The workbook has Random Forest detail in `Version Metrics` and `Project Summary`; Dummy results appear in `Model Comparison` at project and macro levels.
-- The workbook has no overall pooled-observation evaluation level. Its “Pooled MCC” values are per-project pooled MCCs, then macro-averaged.
-- Run Notes do not record the Random Forest scikit-learn version or a dataset checksum.
+- `Version Metrics` contains Random Forest project-version results, and `Project Summary` contains Random Forest summaries derived from those version metrics.
+- `Model Comparison` contains Random Forest and Dummy comparison results and macro averages. `Project Pooled` contains pooled metrics for both models by project and their separate equal-project macro averages.
+- The workbook has no dataset-wide pooled-observation evaluation level, as specified by the protocol. Its project-pooled metrics and macro averages remain distinct from the version-derived project summaries.
+- Run Notes records scikit-learn 1.9.1 but does not record the dataset checksum.
 - `validate_dataset()` is defined, but the normal experiment entry point does not call it before target construction and feature selection.
 - For this dataset, the selected features parsed as numeric and had no infinite values. There are 1,589 missing values across `rfc`, `lcom3`, `amc`, and `nr`.
 - Dataset provenance and the exact observational meaning of rows remain unverified.

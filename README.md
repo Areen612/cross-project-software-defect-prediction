@@ -10,6 +10,23 @@ The experiments use **Leave-One-Project-Out (LOPO) cross-validation**, where one
 
 The project also investigates model performance through a Dummy baseline, robustness analysis, and feature ablation.
 
+## Experiment Snapshot
+
+| Item | Information |
+|---|---|
+| Dataset | 110,917 observations |
+| Projects | 39 |
+| Validation | 39-fold Leave-One-Project-Out (LOPO) |
+| Models | Random Forest and Dummy Classifier |
+| Scikit-learn | 1.9.1 |
+| Latest reviewed run | November 11, 2026 (lopo_run_20261111_111341_636088) |
+| Evaluation | Project-Version, Project Summary, and Project Pooled |
+| Workbook | Five sheets |
+
+Random Forest confusion counts: TN = 8,691, FP = 59, FN = 9, and TP = 102,158 (68 total errors).
+
+The saved Random Forest and Dummy predictions, workbook, robustness summary, and feature-ablation summaries were reconciled against the reported results during the latest artifact review. This was an artifact alignment check, not a complete independent reproduction.
+
 ## Dataset
 
 The dataset contains software metrics collected from multiple software projects and versions.
@@ -148,11 +165,11 @@ The workbook labels these paths separately. MCC averages exclude non-informative
 
 | Workbook sheet | Calculation |
 |---|---|
-| `Version Metrics` | Metrics calculated separately for each project-version group. |
-| `Project Summary` | Unweighted mean of version metrics within each project, plus supplementary support-weighted version means. |
-| `Project Pooled` | Metrics calculated from raw predictions pooled across versions within each project, plus an equal-project macro average. |
-| `Model Comparison` | Primary project-version-derived macro comparison. |
-| `Run Notes` | Metadata and explicit descriptions of both aggregation paths. |
+| `Version Metrics` | Detailed Random Forest metrics for each project-version group. |
+| `Project Summary` | Random Forest project summaries derived from version-level metrics; each version has equal weight, with support-weighted values retained as supplementary fields. |
+| `Model Comparison` | Random Forest and Dummy comparison, including the project-level results and primary project-version-derived macro averages. |
+| `Project Pooled` | Per-project pooled metrics for both models, plus a separate equal-project macro average for each model. |
+| `Run Notes` | Experiment configuration, metadata, and methodological notes for both aggregation paths. |
 
 The workbook and robustness analysis distinguish the two paths explicitly. The robustness analysis's project metrics pool predictions across versions within each project, and its mean across project metrics is a macro-average of project-pooled metrics.
 
@@ -355,7 +372,7 @@ Provide the output directory of the corresponding Random Forest experiment:
 
 ```bash
 uv run python -m scripts.run_dummy_baseline \
-  outputs/lopo_run_20261109_103355_224454
+  --output-dir outputs/lopo_run_20261111_111341_636088
 ```
 
 ### 3. Run robustness analysis
@@ -389,12 +406,13 @@ The main experiment produces fold-level predictions and evaluation results.
 
 The Dummy baseline produces its corresponding predictions and metrics.
 
-The evaluation workbook contains:
+The evaluation workbook contains five sheets:
 
-- `Version Metrics`
-- `Project Summary`
-- `Model Comparison`
-- `Run Notes`
+- `Version Metrics`: Random Forest results for each project-version group.
+- `Project Summary`: Random Forest project summaries derived by averaging version metrics within each project; supplementary support-weighted fields are also included.
+- `Model Comparison`: Random Forest and Dummy comparisons, including the project-level and macro-average results.
+- `Project Pooled`: per-project metrics calculated from pooled predictions for both evaluated models, with equal-project project-pooled macro averages.
+- `Run Notes`: experiment configuration, environment, and methodological notes.
 
 The robustness analysis generates:
 
